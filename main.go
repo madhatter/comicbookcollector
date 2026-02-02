@@ -5,24 +5,30 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/chromedp"
 )
 
 const userDataDir = "./chrome-data"
 
-var firstRun bool = false
-
 func main() {
-	// Check if user data directory exists, if not create it
-	if _, err := os.Stat(userDataDir); os.IsNotExist(err) {
-		firstRun = true
+	// TODO: Use a folder in user home directory for user data
+	wd, err := os.Getwd()
+	if err != nil {
+		log.Fatal(err)
+	}
+	userDataDir := filepath.Join(wd, "chrome-data")
 
-		err := os.Mkdir("./chrome-data", 0755)
-		if err != nil {
-			log.Fatal(err)
+	fmt.Println("Using user data directory:", userDataDir)
+
+	// Ensure the directory exists
+	if _, err := os.Stat(userDataDir); os.IsNotExist(err) {
+		if err := os.Mkdir(userDataDir, 0755); err != nil {
+			log.Fatal("Could not create chrome-data directory:", err)
 		}
 	}
 
@@ -44,10 +50,48 @@ func main() {
 	defer cancel()
 
 	// Set a timeout to avoid hanging
-	ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
+	ctx, cancel = context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
 	// Here starts the main logic
+
+	// First check if we need to log in
+	fmt.Println("[Info] Checking login status...")
+
+	// Use a dummy URL that requires login or shows user-specific elements (e.g., your collection)
+	checkURL := "https://leagueofcomicgeeks.com/profile/nostalgix/collection"
+
+	var nodes []*cdp.Node
+
+	err = chromedp.Run(ctx,
+		chromedp.Navigate(checkURL),
+		// Give the page a moment to render the DOM
+		chromedp.Sleep(3*time.Second),
+		// Check for the avatar image with your username in the alt tag.
+		// Based on your HTML: <img ... alt="nostalgix">
+		chromedp.Nodes(`img[alt='nostalgix']`, &nodes, chromedp.ByQuery),
+	)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// If no nodes found, we are not logged in
+	if len(nodes) == 0 {
+		fmt.Println("---------------------------------------------------------")
+		fmt.Println("[Alert] NOT LOGGED IN (Avatar 'nostalgix' not found)!")
+		fmt.Println("---------------------------------------------------------")
+		fmt.Println("Browser window is open. Please log in manually.")
+		fmt.Println("Waiting 60 seconds...")
+
+		// Wait for manual login
+		chromedp.Run(ctx, chromedp.Sleep(60*time.Second))
+		fmt.Println("[Info] Resuming...")
+	} else {
+		fmt.Println("[Info] Login confirmed (Avatar found).")
+	}
+
+	// Now navigate to the target page to scrape data
 
 	var (
 		title     string
@@ -60,22 +104,10 @@ func main() {
 	// TODO: Change to dynamic input if needed
 	targetURL := "https://leagueofcomicgeeks.com/comic/5434313/nyx-4"
 
-	fmt.Println("Starting Chrome...")
+	fmt.Printf("[Info] Scraping: %s\n", targetURL)
 
-	err := chromedp.Run(ctx,
-		// Navigieren
+	err = chromedp.Run(ctx,
 		chromedp.Navigate(targetURL),
-
-		// If it's the first run, wait longer for manual login
-		func() chromedp.Action {
-			if firstRun {
-				fmt.Println("First time start: Please log in within 120 seconds...")
-				return chromedp.Sleep(120 * time.Second)
-			} else {
-				fmt.Println("Waiting for page to load...")
-				return chromedp.Sleep(3 * time.Second)
-			}
-		}(),
 
 		// 1. TITEL: H1 inside div.page-details
 		chromedp.Text(`div.page-details h1`, &title, chromedp.ByQuery),
