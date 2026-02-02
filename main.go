@@ -87,13 +87,13 @@ func main() {
 		// Search for div with class 'name' containing text 'UPC' and get the following sibling div with class 'value'
 		chromedp.Text(`//div[contains(@class, 'name') and contains(text(), 'UPC')]/following-sibling::div[contains(@class, 'value')]`, &upc, chromedp.BySearch),
 
-		// 4. BOX: Jetzt müssen wir den Tab wechseln!
-		// Wir klicken auf den Tab "My Details"
+		// 4. STORAGE BOX: Need to click to "My Details" tab first
 		chromedp.Click(`#nav-my-details-tab`, chromedp.ByQuery),
 
-		// Warten, bis der Tab-Inhalt geladen ist (wichtig!)
+		// Wait for content to load
 		chromedp.Sleep(2*time.Second),
 
+		// Then get the storage box info
 		chromedp.Value(`#storage_box`, &box, chromedp.ByQuery),
 	)
 
