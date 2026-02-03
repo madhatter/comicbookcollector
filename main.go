@@ -13,7 +13,9 @@ import (
 	"github.com/chromedp/chromedp"
 )
 
+// Configuration
 const userDataDir = "./chrome-data"
+const targetUsername = "nostalgix"
 
 func main() {
 	// TODO: Use a folder in user home directory for user data
@@ -61,15 +63,20 @@ func main() {
 	// Use a dummy URL that requires login or shows user-specific elements (e.g., your collection)
 	checkURL := "https://leagueofcomicgeeks.com/profile/nostalgix/collection"
 
+	// We define a slice to hold the raw DOM nodes returned by the protocol
 	var nodes []*cdp.Node
 
+	// Construct the CSS selector dynamically: img[alt='nostalgix']
+	avatarSelector := fmt.Sprintf("img[alt='%s']", targetUsername)
+
+	// Navigate to the check URL and look for the avatar image
 	err = chromedp.Run(ctx,
 		chromedp.Navigate(checkURL),
 		// Give the page a moment to render the DOM
 		chromedp.Sleep(3*time.Second),
 		// Check for the avatar image with your username in the alt tag.
 		// Based on your HTML: <img ... alt="nostalgix">
-		chromedp.Nodes(`img[alt='nostalgix']`, &nodes, chromedp.ByQuery),
+		chromedp.Nodes(avatarSelector, &nodes, chromedp.ByQuery),
 	)
 
 	if err != nil {
