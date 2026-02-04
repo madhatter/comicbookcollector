@@ -69,10 +69,11 @@ func (s *Session) Close() {
 }
 
 // EnsureLoggedIn checks if the user is logged in and prompts for manual login if not.
-func (s *Session) EnsureLoggedIn(username string) error {
+func (s *Session) EnsureLoggedIn(username string, checkUrl string) error {
 	//checkURL := fmt.Sprintf("https://leagueofcomicgeeks.com/profile/%s/collection", username)
-	settingsURL := "https://leagueofcomicgeeks.com/settings"
-	fmt.Printf("[Browser] Verifying session for user '%s'...\n", username)
+	//settingsURL := "https://leagueofcomicgeeks.com/settings"
+	log.Printf("[Browser] Verifying session for user '%s'...\n", username)
+	log.Printf("[Browser] Testing login status at %s ...\n", checkUrl)
 
 	var currentURL string
 
@@ -81,7 +82,7 @@ func (s *Session) EnsureLoggedIn(username string) error {
 	defer cancel()
 
 	err := chromedp.Run(ctx,
-		chromedp.Navigate(settingsURL),
+		chromedp.Navigate(checkUrl),
 		// Give the page a moment to render the DOM
 		chromedp.Sleep(3*time.Second),
 		chromedp.Location(&currentURL),
@@ -96,6 +97,6 @@ func (s *Session) EnsureLoggedIn(username string) error {
 		return fmt.Errorf("user '%s' is not logged in", username)
 	}
 
-	fmt.Println("[Browser] Login confirmed.")
+	log.Println("[Browser] Login confirmed.")
 	return nil
 }

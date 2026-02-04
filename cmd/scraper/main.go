@@ -12,6 +12,7 @@ import (
 
 // Configuration
 const targetUsername = "nostalgix"
+const checkURL = "https://leagueofcomicgeeks.com/settings"
 
 // Example URL for now to scrape
 // TODO: Change to dynamic input if needed
@@ -24,7 +25,7 @@ func main() {
 	defer sess.Close()
 
 	// 2. Verify Login Status
-	if err := sess.EnsureLoggedIn(targetUsername); err != nil {
+	if err := sess.EnsureLoggedIn(targetUsername, checkURL); err != nil {
 		log.Printf("[Warning] %v", err)
 		log.Println("Please log in manually via the browser window.")
 		log.Println("Waiting 60 seconds for manual login...")
@@ -44,13 +45,7 @@ func main() {
 		box       string
 	)
 
-	fmt.Printf("[Info] Scraping: %s\n", targetURL)
-
-	/*
-		// Set a specific timeout for the scraping task
-		ctx, cancel := context.WithTimeout(sess.Context, 2*time.Minute)
-		defer cancel()
-	*/
+	log.Printf("[Info] Scraping: %s\n", targetURL)
 
 	err := chromedp.Run(sess.Context,
 		chromedp.Navigate(targetURL),
