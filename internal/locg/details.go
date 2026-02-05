@@ -1,0 +1,72 @@
+package locg
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"strings"
+	"time"
+
+	"github.com/chromedp/chromedp"
+)
+
+type ComicBookDetails struct {
+	Title       string
+	Series      string
+	IssueNumber int
+	Publisher   string
+	UPC         string
+	URL         string
+	StorageBox  string
+}
+
+// ScrapeComicBookDetails navigates to the given URL and extracts comic book details
+func ScrapeComicBookDetails(ctx context.Context, url string) (ComicBookDetails, error) {
+	var d ComicBookDetails
+	d.URL = url
+
+	err := chromedp.Run(ctx,
+		chromedp.Navigate(url),
+
+		// 1. TITEL: H1 inside div.page-details
+		chromedp.Text(`div.page-details h1`, &d.Title, chromedp.ByQuery),
+
+		// 2. PUBLISHER: Link inside of div.header-intro
+		chromedp.Text(`div.header-intro a`, &d.Publisher, chromedp.ByQuery),
+
+		// 3. UPC: XPath to find the UPC value
+		// Search for div with class 'name' containing text 'UPC' and get the following sibling div with class 'value'
+		chromedp.Text(`//div[contains(@class, 'name') and contains(text(), 'UPC')]/following-sibling::div[contains(@class, 'value')]`, &d.UPC, chromedp.BySearch),
+
+		// 4. STORAGE BOX: Need to click to "My Details" tab first
+		chromedp.Click(`#nav-my-details-tab`, chromedp.ByQuery),
+
+		// Wait for content to load
+		chromedp.Sleep(2*time.Second),
+
+		// Then get the storage box info
+		chromedp.Value(`#storage_box`, &d.StorageBox, chromedp.ByQuery),
+
+		// TODO: Add issue number extraction if needed (not currently implemented
+		// TODO: Click on "Series" and extract the series name?
+	)
+
+	if err != nil {
+		log.Fatalf("[Error] Scraping failed: %v", err)
+	}
+
+	// Clean up data (trim newlines/spaces)
+	d.Title = strings.TrimSpace(d.Title)
+	d.Publisher = strings.TrimSpace(d.Publisher)
+	d.UPC = strings.TrimSpace(d.UPC)
+	d.StorageBox = strings.TrimSpace(d.StorageBox)
+
+	fmt.Println("------------------------------------------------")
+	fmt.Printf("Title:     %s\n", d.Title)
+	fmt.Printf("Publisher: %s\n", d.Publisher)
+	fmt.Printf("UPC:   %s\n", d.UPC)
+	fmt.Printf("Box:       %s\n", d.StorageBox)
+	fmt.Println("------------------------------------------------")
+
+	return d, err
+}
