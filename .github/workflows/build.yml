@@ -1,4 +1,4 @@
-name: CICD
+name: Building...
 on: [push]
 jobs:
 
@@ -13,8 +13,8 @@ jobs:
         go-version: 1.25
       id: go
 
-    - name: Check out code into the Go module directory
+    - name: Check out code
       uses: actions/checkout@v5
 
-    - name: Build
+    - name: Actually building
       run: go build -v ./...
