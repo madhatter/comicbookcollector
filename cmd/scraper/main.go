@@ -14,10 +14,6 @@ import (
 const targetUsername = "nostalgix"
 const checkURL = "https://leagueofcomicgeeks.com/settings"
 
-// Example URL for now to scrape
-// TODO: Change to dynamic input if needed
-const targetURL = "https://leagueofcomicgeeks.com/comic/5434313/nyx-4"
-
 func main() {
 	// 1. Initialize Browser Session
 	// headless = false so you can see the window
@@ -38,17 +34,6 @@ func main() {
 		}
 	}
 
-	/*
-		// 3. Scrape Comic Book Details
-		log.Printf("[Info] Scraping: %s\n", targetURL)
-		details, err := locg.ScrapeComicBookDetails(sess.Context, targetURL)
-		if err != nil {
-			log.Fatalln("[FATAL] Scraping failed:", err)
-		}
-
-		log.Printf("[Success] Scraped details: %+v\n", details)
-	*/
-
 	// 3. Get Collection Links
 	log.Printf("[Info] Getting collection links for user '%s'...\n", targetUsername)
 	items, err := locg.GetCollectionLinks(sess.Context, targetUsername)
@@ -60,10 +45,7 @@ func main() {
 
 	// 4. Scrape the details for each comic book in the collection
 	// For demonstration, we'll just scrape the first few items to avoid long runtimes during testing.
-	limit := 3
-	if len(items) < limit {
-		limit = len(items)
-	}
+	limit := min(len(items), 300)
 
 	for i, item := range items[:limit] {
 		log.Printf("[%d/%d] Scrape: %s\n", i+1, limit, item.URL)
