@@ -37,12 +37,23 @@ func main() {
 		}
 	}
 
-	// 3. Scrape Comic Book Details
-	log.Printf("[Info] Scraping: %s\n", targetURL)
-	details, err := locg.ScrapeComicBookDetails(sess.Context, targetURL)
+	/*
+		// 3. Scrape Comic Book Details
+		log.Printf("[Info] Scraping: %s\n", targetURL)
+		details, err := locg.ScrapeComicBookDetails(sess.Context, targetURL)
+		if err != nil {
+			log.Fatalln("[FATAL] Scraping failed:", err)
+		}
+
+		log.Printf("[Success] Scraped details: %+v\n", details)
+	*/
+
+	// 3. Get Collection Links
+	log.Printf("[Info] Getting collection links for user '%s'...\n", targetUsername)
+	links, err := locg.GetCollectionLinks(sess.Context, targetUsername)
 	if err != nil {
-		log.Fatalln("[FATAL] Scraping failed:", err)
+		log.Fatalln("[FATAL] Failed to get collection links:", err)
 	}
 
-	log.Printf("[Success] Scraped details: %+v\n", details)
+	log.Printf("[Success] Found %d collection items.\n", len(links))
 }
