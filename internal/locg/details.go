@@ -11,6 +11,7 @@ import (
 )
 
 type ComicBookDetails struct {
+	ID          int
 	Title       string
 	Series      string
 	IssueNumber int
@@ -21,12 +22,16 @@ type ComicBookDetails struct {
 }
 
 // ScrapeComicBookDetails navigates to the given URL and extracts comic book details
-func ScrapeComicBookDetails(ctx context.Context, url string) (ComicBookDetails, error) {
+func ScrapeComicBookDetails(parentCtx context.Context, item ComicItem) (ComicBookDetails, error) {
 	var d ComicBookDetails
-	d.URL = url
+	d.URL = item.URL
+	d.ID = item.ID
+
+	ctx, cancel := context.WithTimeout(parentCtx, 15*time.Second)
+	defer cancel()
 
 	err := chromedp.Run(ctx,
-		chromedp.Navigate(url),
+		chromedp.Navigate(item.URL),
 
 		// 1. TITEL: H1 inside div.page-details
 		chromedp.Text(`div.page-details h1`, &d.Title, chromedp.ByQuery),
@@ -36,6 +41,7 @@ func ScrapeComicBookDetails(ctx context.Context, url string) (ComicBookDetails, 
 
 		// 3. UPC: XPath to find the UPC value
 		// Search for div with class 'name' containing text 'UPC' and get the following sibling div with class 'value'
+		// TODO: Sometimes the UPC field is missing, we should handle that case gracefully (atm we are waiting for ages)
 		chromedp.Text(`//div[contains(@class, 'name') and contains(text(), 'UPC')]/following-sibling::div[contains(@class, 'value')]`, &d.UPC, chromedp.BySearch),
 
 		// 4. STORAGE BOX: Need to click to "My Details" tab first

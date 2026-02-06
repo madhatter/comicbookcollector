@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"time"
 
@@ -50,10 +51,29 @@ func main() {
 
 	// 3. Get Collection Links
 	log.Printf("[Info] Getting collection links for user '%s'...\n", targetUsername)
-	links, err := locg.GetCollectionLinks(sess.Context, targetUsername)
+	items, err := locg.GetCollectionLinks(sess.Context, targetUsername)
 	if err != nil {
 		log.Fatalln("[FATAL] Failed to get collection links:", err)
 	}
 
-	log.Printf("[Success] Found %d collection items.\n", len(links))
+	log.Printf("[Success] Found %d collection items.\n", len(items))
+
+	// 4. Scrape the details for each comic book in the collection
+	// For demonstration, we'll just scrape the first few items to avoid long runtimes during testing.
+	limit := 3
+	if len(items) < limit {
+		limit = len(items)
+	}
+
+	for i, item := range items[:limit] {
+		log.Printf("[%d/%d] Scrape: %s\n", i+1, limit, item.URL)
+
+		details, err := locg.ScrapeComicBookDetails(sess.Context, item)
+		if err != nil {
+			log.Printf("   ERROR: %v\n", err)
+			continue
+		}
+
+		fmt.Printf("   -> %s (Box: %s, UPC: %s)\n", details.Title, details.StorageBox, details.UPC)
+	}
 }
