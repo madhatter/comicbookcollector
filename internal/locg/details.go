@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/chromedp"
 )
 
@@ -27,6 +28,8 @@ func ScrapeComicBookDetails(parentCtx context.Context, item ComicItem) (ComicBoo
 	d.URL = item.URL
 	d.ID = item.ID
 
+	var nodes []*cdp.Node
+
 	ctx, cancel := context.WithTimeout(parentCtx, 15*time.Second)
 	defer cancel()
 
@@ -41,8 +44,17 @@ func ScrapeComicBookDetails(parentCtx context.Context, item ComicItem) (ComicBoo
 
 		// 3. UPC: XPath to find the UPC value
 		// Search for div with class 'name' containing text 'UPC' and get the following sibling div with class 'value'
-		// TODO: Sometimes the UPC field is missing, we should handle that case gracefully (atm we are waiting for ages)
-		chromedp.Text(`//div[contains(@class, 'name') and contains(text(), 'UPC')]/following-sibling::div[contains(@class, 'value')]`, &d.UPC, chromedp.BySearch),
+		// First check if the element exists to avoid errors when trying to extract text
+		chromedp.Nodes(`//div[contains(@class, 'name') and contains(text(), 'UPC')]/following-sibling::div[contains(@class, 'value')]`, &nodes, chromedp.AtLeast(0)),
+
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			if len(nodes) > 0 {
+				// Element ist da, jetzt können wir den Text holen
+				return chromedp.Text(`//div[contains(@class, 'name') and contains(text(), 'UPC')]/following-sibling::div[contains(@class, 'value')]`, &d.UPC, chromedp.BySearch).Do(ctx)
+			}
+			log.Println("Element does not exist, skipping...")
+			return nil
+		}),
 
 		// 4. STORAGE BOX: Need to click to "My Details" tab first
 		chromedp.Click(`#nav-my-details-tab`, chromedp.ByQuery),
