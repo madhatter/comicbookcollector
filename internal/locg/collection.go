@@ -35,14 +35,34 @@ func GetCollectionLinks(ctx context.Context, username string) ([]ComicItem, erro
 		chromedp.Navigate(collectionURL),
 		chromedp.Sleep(2*time.Second), // Wait for the page to load
 
-		// INFINITE SCROLL SIMULATION
-		// TODO: For now only scroll 5 times, in case of very large collections we might want to scroll more or detect when we've reached the end.
+		// Infinite scrolling.
+		// Scroll to the bottom of the page until we have loaded all items. The site uses infinite scrolling
+		// to load more items as you scroll down.
 		chromedp.ActionFunc(func(ctx context.Context) error {
-			//for i := 0; i < 5; i++ { // scroll 5x
-			for i := range [5]int{} { // scroll 5x
-				log.Printf("   ...scrolling (%d/5)\n", i+1)
-				_ = chromedp.Evaluate(`window.scrollTo(0, document.body.scrollHeight);`, nil).Do(ctx)
-				time.Sleep(3 * time.Second) // wait for new content to load, site seems to load quite slow
+			var oldHeight, newHeight int
+
+			for {
+				// Get the current scroll height of the page
+				if err := chromedp.Evaluate(`document.body.scrollHeight`, &newHeight).Do(ctx); err != nil {
+					return err
+				}
+
+				log.Println("[LoCG] Scrolling...")
+
+				// If the height hasn't changed, we have reached the bottom and can stop scrolling
+				if newHeight == oldHeight {
+					break
+				}
+
+				// Scroll to the bottom of the page
+				if err := chromedp.Evaluate(`window.scrollTo(0, document.body.scrollHeight)`, nil).Do(ctx); err != nil {
+					return err
+				}
+
+				// Wait for new content to load
+				time.Sleep(2 * time.Second)
+
+				oldHeight = newHeight
 			}
 			return nil
 		}),
@@ -55,38 +75,43 @@ func GetCollectionLinks(ctx context.Context, username string) ([]ComicItem, erro
 				return err
 			}
 
-			log.Printf("[LoCG] Found items: %d\n", len(nodes))
+			log.Printf("[LoCG] Found nodes on collection side: %d\n", len(nodes))
 
 			for _, n := range nodes {
-				href := n.AttributeValue("href")
-				if href != "" {
-					// Extract the comic ID from the URL
-					parts := strings.Split(href, "/")
-					var id int
+				if n.AttributeValue("class") != "variant-toggle" {
+					// Only process links that are not variant toggles, as those do not lead to comic detail pages.
+					href := n.AttributeValue("href")
+					if href != "" {
+						// Extract the comic ID from the URL
+						parts := strings.Split(href, "/")
+						var id int
 
-					// Make sure that the URL has the expected format before trying to extract the ID
-					if len(parts) >= 3 {
-						var err error
-						id, err = strconv.Atoi(parts[2])
-						if err != nil {
-							log.Printf("[Warning] Failed to parse comic ID from URL %s: %v\n", href, err)
+						// Make sure that the URL has the expected format before trying to extract the ID
+						if len(parts) >= 3 {
+							var err error
+							id, err = strconv.Atoi(parts[2])
+							if err != nil {
+								log.Printf("[Warning] Failed to parse comic ID from URL %s: %v\n", href, err)
+								continue
+							}
+						} else {
+							// Fallback, if the URL format is unexpected, we can log a warning and skip this item
+							log.Printf("[Warning] URL is not in expected format: %s\n", href)
 							continue
 						}
-					} else {
-						// Fallback, if the URL format is unexpected, we can log a warning and skip this item
-						log.Printf("[Warning] URL is not in expected format: %s\n", href)
-						continue
-					}
 
-					// LoCG are relative (/comic/123...), we need to prepend the base URL
-					// TODO: In the future we might want to extract the comic ID from the URL and store it separately, but for now let's just keep the full URL.
-					fullURL := "https://leagueofcomicgeeks.com" + href
-					if !seen[fullURL] {
-						seen[fullURL] = true
-						items = append(items, ComicItem{
-							ID:  id,
-							URL: fullURL,
-						})
+						// LoCG are relative (/comic/123...), we need to prepend the base URL
+						// TODO: In the future we might want to extract the comic ID from the URL and store it separately, but for now let's just keep the full URL.
+						fullURL := "https://leagueofcomicgeeks.com" + href
+						if !seen[fullURL] {
+							seen[fullURL] = true
+							items = append(items, ComicItem{
+								ID:  id,
+								URL: fullURL,
+							})
+						} else {
+							log.Printf("[Info] Skipping duplicate URL: %s\n", fullURL)
+						}
 					}
 				}
 				//log.Printf("   ...found comic link: %s\n", href)

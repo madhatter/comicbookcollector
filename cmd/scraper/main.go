@@ -45,10 +45,10 @@ func main() {
 
 	// 4. Scrape the details for each comic book in the collection
 	// For demonstration, we'll just scrape the first few items to avoid long runtimes during testing.
-	limit := min(len(items), 300)
+	//limit := min(len(items), 300)
 
-	for i, item := range items[:limit] {
-		log.Printf("[%d/%d] Scrape: %s\n", i+1, limit, item.URL)
+	for i, item := range items {
+		log.Printf("[%d/%d] Scrape: %s\n", i+1, len(items), item.URL)
 
 		details, err := locg.ScrapeComicBookDetails(sess.Context, item)
 		if err != nil {
