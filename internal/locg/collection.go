@@ -82,26 +82,14 @@ func GetCollectionLinks(ctx context.Context, username string) ([]ComicItem, erro
 					// Only process links that are not variant toggles, as those do not lead to comic detail pages.
 					href := n.AttributeValue("href")
 					if href != "" {
-						// Extract the comic ID from the URL
-						parts := strings.Split(href, "/")
-						var id int
+						id, err := ParseComicID(href)
 
-						// Make sure that the URL has the expected format before trying to extract the ID
-						if len(parts) >= 3 {
-							var err error
-							id, err = strconv.Atoi(parts[2])
-							if err != nil {
-								log.Printf("[Warning] Failed to parse comic ID from URL %s: %v\n", href, err)
-								continue
-							}
-						} else {
-							// Fallback, if the URL format is unexpected, we can log a warning and skip this item
-							log.Printf("[Warning] URL is not in expected format: %s\n", href)
+						if err != nil {
+							log.Printf("[Warning] %v\n", err)
 							continue
 						}
 
 						// LoCG are relative (/comic/123...), we need to prepend the base URL
-						// TODO: In the future we might want to extract the comic ID from the URL and store it separately, but for now let's just keep the full URL.
 						fullURL := "https://leagueofcomicgeeks.com" + href
 						if !seen[fullURL] {
 							seen[fullURL] = true
@@ -121,4 +109,23 @@ func GetCollectionLinks(ctx context.Context, username string) ([]ComicItem, erro
 	)
 
 	return items, err
+}
+
+// ParseComicID extracts the LoCG comic ID from a given URL or path.
+// Exptected: "/comic/12345/titel-slug" oder "https://league.../comic/12345/..."
+// Returns: 12345
+func ParseComicID(href string) (int, error) {
+	parts := strings.Split(href, "/")
+
+	// We look for the "comic" part in the URL and take the next part as the ID.
+	for i, part := range parts {
+		if part == "comic" && i+1 < len(parts) {
+			id, err := strconv.Atoi(parts[i+1])
+			if err != nil {
+				return 0, fmt.Errorf("Failed to parse comic ID from URL %s: %v", href, err)
+			}
+			return id, nil
+		}
+	}
+	return 0, fmt.Errorf("No ID found in URL: %s", href)
 }
