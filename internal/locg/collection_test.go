@@ -1,9 +1,55 @@
 package locg
 
 import (
+	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+
+	"github.com/chromedp/cdproto/cdp"
+	"github.com/chromedp/chromedp"
 )
+
+func TestGetLinksSelector(t *testing.T) {
+	// serve a fake HTML page that simulates the structure of the LoCG collection page
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `
+		<html><body>
+			<li class="issue" data-comic="12345">
+				<div class="cover"><a href="/comic/12345/batman">Link</a></div>
+			</li>
+			<li class="issue" data-comic="67890">
+				<div class="cover"><a href="/comic/67890/superman">Link</a></div>
+			</li>
+		</body></html>
+		`)
+	}))
+	defer ts.Close()
+
+	// start a chromedp context
+	ctx, cancel := chromedp.NewContext(context.Background())
+	defer cancel()
+
+	var nodes []*cdp.Node
+
+	// This is the selector we use in GetCollectionLinks to find the comic links
+	selector := `li.issue div.cover a`
+
+	err := chromedp.Run(ctx,
+		chromedp.Navigate(ts.URL),
+		chromedp.Nodes(selector, &nodes, chromedp.ByQueryAll),
+	)
+
+	if err != nil {
+		t.Fatalf("Chromedp error: %v", err)
+	}
+
+	// We expect to find 2 nodes based on our test HTML
+	if len(nodes) != 2 {
+		t.Errorf("Expected 2 nodes, but got %d", len(nodes))
+	}
+}
 
 func TestParseComicID(t *testing.T) {
 	tests := []struct {

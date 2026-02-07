@@ -10,6 +10,7 @@ import (
 
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/chromedp"
+	"github.com/madhatter/comicbookcollector/internal/browser"
 )
 
 type ComicItem struct {
@@ -35,37 +36,8 @@ func GetCollectionLinks(ctx context.Context, username string) ([]ComicItem, erro
 		chromedp.Navigate(collectionURL),
 		chromedp.Sleep(2*time.Second), // Wait for the page to load
 
-		// Infinite scrolling.
-		// Scroll to the bottom of the page until we have loaded all items. The site uses infinite scrolling
-		// to load more items as you scroll down.
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			var oldHeight, newHeight int
-
-			for {
-				// Get the current scroll height of the page
-				if err := chromedp.Evaluate(`document.body.scrollHeight`, &newHeight).Do(ctx); err != nil {
-					return err
-				}
-
-				log.Println("[LoCG] Scrolling...")
-
-				// If the height hasn't changed, we have reached the bottom and can stop scrolling
-				if newHeight == oldHeight {
-					break
-				}
-
-				// Scroll to the bottom of the page
-				if err := chromedp.Evaluate(`window.scrollTo(0, document.body.scrollHeight)`, nil).Do(ctx); err != nil {
-					return err
-				}
-
-				// Wait for new content to load
-				time.Sleep(2 * time.Second)
-
-				oldHeight = newHeight
-			}
-			return nil
-		}),
+		// Scroll to the bottom of the page to trigger loading of all items in the collection
+		browser.ScrollToBottom(),
 
 		// Extract the links to the comic book detail pages
 		chromedp.ActionFunc(func(ctx context.Context) error {

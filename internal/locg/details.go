@@ -49,7 +49,7 @@ func ScrapeComicBookDetails(parentCtx context.Context, item ComicItem) (ComicBoo
 
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			if len(nodes) > 0 {
-				// Element ist da, jetzt können wir den Text holen
+				// Element exists, extract the text
 				return chromedp.Text(`//div[contains(@class, 'name') and contains(text(), 'UPC')]/following-sibling::div[contains(@class, 'value')]`, &d.UPC, chromedp.BySearch).Do(ctx)
 			}
 			log.Println("Element does not exist, skipping...")
