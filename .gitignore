@@ -1,2 +1,9 @@
-chrome-data*
+/bin/
+chrome-data/
 comicbookcollector
+scraper
+
+.env
+.DS_Store
+*.log
+*.tmp
