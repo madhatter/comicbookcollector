@@ -27,8 +27,17 @@ func TestGetLinksSelector(t *testing.T) {
 	}))
 	defer ts.Close()
 
+	opts := append(chromedp.DefaultExecAllocatorOptions[:],
+		chromedp.Flag("headless", true),
+		chromedp.Flag("no-sandbox", true), // WICHTIG für CI/Docker!
+		chromedp.Flag("disable-gpu", true),
+	)
+
+	allocCtx, cancelAlloc := chromedp.NewExecAllocator(context.Background(), opts...)
+	defer cancelAlloc()
+
 	// start a chromedp context
-	ctx, cancel := chromedp.NewContext(context.Background())
+	ctx, cancel := chromedp.NewContext(allocCtx)
 	defer cancel()
 
 	var nodes []*cdp.Node
