@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/chromedp"
@@ -29,15 +30,17 @@ func TestGetLinksSelector(t *testing.T) {
 
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("headless", true),
-		chromedp.Flag("no-sandbox", true), // WICHTIG für CI/Docker!
+		chromedp.Flag("no-sandbox", true), // Necessary for running in some CI environments and Docker containers
 		chromedp.Flag("disable-gpu", true),
+		chromedp.Flag("disable-dev-shm-usage", true),
+		chromedp.Flag("disable-setuid-sandbox", true),
 	)
 
 	allocCtx, cancelAlloc := chromedp.NewExecAllocator(context.Background(), opts...)
 	defer cancelAlloc()
 
 	// start a chromedp context
-	ctx, cancel := chromedp.NewContext(allocCtx)
+	ctx, cancel := context.WithTimeout(allocCtx, 60*time.Second)
 	defer cancel()
 
 	var nodes []*cdp.Node
