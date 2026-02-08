@@ -39,9 +39,12 @@ func TestGetLinksSelector(t *testing.T) {
 	allocCtx, cancelAlloc := chromedp.NewExecAllocator(context.Background(), opts...)
 	defer cancelAlloc()
 
+	ctx, cancelCtx := chromedp.NewContext(allocCtx)
+	defer cancelCtx()
+
 	// start a chromedp context
-	ctx, cancel := context.WithTimeout(allocCtx, 60*time.Second)
-	defer cancel()
+	ctx, cancelTimeout := context.WithTimeout(ctx, 60*time.Second)
+	defer cancelTimeout()
 
 	var nodes []*cdp.Node
 
