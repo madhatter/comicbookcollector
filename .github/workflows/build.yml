@@ -1,5 +1,5 @@
 name: Build and Test
-on: 
+on:
   push:
     branches: [main]
   pull_request:
@@ -7,10 +7,15 @@ on:
 
 jobs:
   build:
-    name: Build and Test
+    name: Build and Test (${{ matrix.goos }}/${{ matrix.goarch }})
     runs-on: ubuntu-latest
-    steps:
 
+    strategy:
+      matrix:
+        goos: [linux, darwin]
+        goarch: [amd64, arm64]
+
+    steps:
     - name: Set up Go 1.25
       uses: actions/setup-go@v6
       with:
@@ -28,12 +33,19 @@ jobs:
       run: go test -v ./...
 
     - name: Actually building
-      run: go build -v -o bin/comicbookcollector ./cmd/scraper
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 0
+      run: |
+        OUTPUT_NAME=bin/comicbookcollector-${{ matrix.goos }}-${{ matrix.goarch }}
+
+        go build -v -o $OUTPUT_NAME ./cmd/scraper
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: comicbookcollector-linux-amd64
-        path: bin/comicbookcollector
+        name: comicbookcollector-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: bin/comicbookcollector-*
         # Set retention to keep artifacts clean
         retention-days: 5
