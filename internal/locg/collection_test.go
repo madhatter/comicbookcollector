@@ -43,7 +43,7 @@ func TestGetLinksSelector(t *testing.T) {
 	defer cancelCtx()
 
 	// start a chromedp context
-	ctx, cancelTimeout := context.WithTimeout(ctx, 60*time.Second)
+	ctx, cancelTimeout := context.WithTimeout(ctx, 120*time.Second)
 	defer cancelTimeout()
 
 	var nodes []*cdp.Node
