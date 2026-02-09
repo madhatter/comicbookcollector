@@ -1,6 +1,6 @@
 # ComicBookCollector
 
-![Build Status](https://github.com/madhatter/comicbookcollector/actions/workflows/ci.yml/badge.svg)
+![Build Status](https://github.com/madhatter/comicbookcollector/actions/workflows/cicd.yml/badge.svg)
 ![Go Version](https://img.shields.io/github/go-mod/go-version/madhatter/comicbookcollector)
 
 **ComicBookCollector** is a specialized CLI tool written in Go to automate the extraction of comic book collection data from [League of Comic Geeks](https://leagueofcomicgeeks.com).
