@@ -43,7 +43,7 @@ jobs:
         go build -v -o $OUTPUT_NAME ./cmd/scraper
 
     - name: Upload Artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: comicbookcollector-${{ matrix.goos }}-${{ matrix.goarch }}
         path: bin/comicbookcollector-*
