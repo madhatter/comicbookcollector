@@ -18,6 +18,8 @@ type ComicBookDetails struct {
 	IssueNumber int
 	Publisher   string
 	ReleaseDate time.Time
+	CoverPrice  string
+	Description string
 	UPC         string
 	URL         string
 	StorageBox  string
@@ -66,6 +68,8 @@ func ScrapeComicBookDetails(parentCtx context.Context, item ComicItem) (*ComicBo
 	fmt.Printf("Title:     %s\n", d.Title)
 	fmt.Printf("Publisher: %s\n", d.Publisher)
 	fmt.Printf("ReleaseDate: %s\n", d.ReleaseDate.Format("02. Jan 2006"))
+	fmt.Printf("Cover Price:   %s\n", d.CoverPrice)
+	fmt.Printf("Description:   %s\n", d.Description)
 	fmt.Printf("UPC:   %s\n", d.UPC)
 	fmt.Printf("Box:       %s\n", d.StorageBox)
 	fmt.Println("------------------------------------------------")
@@ -129,11 +133,57 @@ func fetchExtendedData(d *ComicBookDetails) chromedp.Action {
 				return err
 			}
 		}
+
+		// COVER PRICE: This is not very elegant, but it seems we have to be very precise to find the price element. It is inside a div.row with mt-1 and mb-4,
+		// and then a div.col with classes copy-small and font-italic. We can try to find this element and extract the text, which should contain the price.
+		priceSelector := `div.row.mt-1.mb-4 div.col.copy-small.font-italic`
+		var rawPriceText string
+
+		var priceNodes []*cdp.Node
+		if err := chromedp.Nodes(priceSelector, &priceNodes, chromedp.ByQuery).Do(ctx); err == nil && len(priceNodes) > 0 {
+			// This is something like "Comic · 32 pages · $3.99"
+			chromedp.Text(priceSelector, &rawPriceText, chromedp.ByQuery).Do(ctx)
+			log.Printf("[Info] Raw price text: %s\n", rawPriceText)
+		} else {
+			log.Printf("[Info] No price element found with selector: %s\n", priceSelector)
+		}
+
+		if price, ok := extractPrice(rawPriceText); ok {
+			d.CoverPrice = price
+		}
+
+		// DESCRIPTION: div with class 'listing-description' inside of div.col12
+		descriptionSelector := `div.col-12.listing-description`
+
+		var descNodes []*cdp.Node
+		if err := chromedp.Nodes(descriptionSelector, &descNodes, chromedp.ByQuery).Do(ctx); err == nil && len(descNodes) > 0 {
+			chromedp.Text(descriptionSelector, &d.Description, chromedp.ByQuery).Do(ctx)
+		}
+
 		return nil
 	})
 }
 
-// parseLoCGDate converts a date string from LoCG format to time.Time
+// extractPrice tries to find a price string (e.g., "$3.99") from a raw text input.
+// It assumes the price is the last component of a '·' separated string.
+func extractPrice(rawPriceText string) (string, bool) {
+	if rawPriceText == "" {
+		return "", false
+	}
+
+	parts := strings.Split(rawPriceText, "·")
+	// We are looking for the last part of the string.
+	if len(parts) > 0 {
+		lastPart := strings.TrimSpace(parts[len(parts)-1])
+		if strings.HasPrefix(lastPart, "$") {
+			return lastPart, true
+		}
+	}
+
+	return "", false
+}
+
+// ParseLoCGDate converts a date string from LoCG format to time.Time
 func ParseLoCGDate(dateStr string) (time.Time, error) {
 	// LoCG dates are typically in the format "Month(Short) Day, Year" (e.g., "Jan 15, 2024")
 	cleanStr := strings.TrimSpace(dateStr)
