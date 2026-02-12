@@ -56,49 +56,49 @@ func TestExtractPrice(t *testing.T) {
 	testCases := []struct {
 		name          string
 		rawPriceText  string
-		expectedPrice string
+		expectedPrice int64
 		expectedFound bool
 	}{
 		{
 			name:          "Valid price at the end",
 			rawPriceText:  "Comic · 32 pages · $3.99",
-			expectedPrice: "$3.99",
+			expectedPrice: 399,
 			expectedFound: true,
 		},
 		{
 			name:          "Valid price with different currency",
 			rawPriceText:  "Comic · 32 pages · $9.99",
-			expectedPrice: "$9.99",
+			expectedPrice: 999,
 			expectedFound: true,
 		},
 		{
 			name:          "No price in string",
 			rawPriceText:  "Comic · 32 pages · Rated T",
-			expectedPrice: "",
+			expectedPrice: 0,
 			expectedFound: false,
 		},
 		{
 			name:          "Empty string",
 			rawPriceText:  "",
-			expectedPrice: "",
+			expectedPrice: 0,
 			expectedFound: false,
 		},
 		{
 			name:          "Price in the middle",
 			rawPriceText:  "Comic · $4.99 · 32 pages",
-			expectedPrice: "",
+			expectedPrice: 0,
 			expectedFound: false,
 		},
 		{
 			name:          "Only price",
 			rawPriceText:  "$1.99",
-			expectedPrice: "$1.99",
+			expectedPrice: 199,
 			expectedFound: true,
 		},
 		{
 			name:          "String with no separators",
 			rawPriceText:  "Some random text",
-			expectedPrice: "",
+			expectedPrice: 0,
 			expectedFound: false,
 		},
 	}
@@ -107,7 +107,59 @@ func TestExtractPrice(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			price, found := extractPrice(tc.rawPriceText)
 			if price != tc.expectedPrice {
-				t.Errorf("expected price to be '%s', but got '%s'", tc.expectedPrice, price)
+				t.Errorf("expected price to be '%v', but got '%v'", tc.expectedPrice, price)
+			}
+			if found != tc.expectedFound {
+				t.Errorf("expected found to be '%t', but got '%t'", tc.expectedFound, found)
+			}
+		})
+	}
+}
+
+func TestParsePrice(t *testing.T) {
+	testCases := []struct {
+		name          string
+		priceText     string
+		expectedPrice int64
+		expectedFound bool
+	}{
+		{
+			name:          "Valid price with dollar sign",
+			priceText:     "$3.99",
+			expectedPrice: 399,
+			expectedFound: true,
+		},
+		{
+			name:          "Invalid price without dollar sign",
+			priceText:     "3.99",
+			expectedPrice: 399,
+			expectedFound: true,
+		},
+		{
+			name:          "Invalid price with too many decimal places",
+			priceText:     "$3.9123",
+			expectedPrice: 391,
+			expectedFound: true,
+		},
+		{
+			name:          "Invalid price with non-numeric characters",
+			priceText:     "$3.9a",
+			expectedPrice: 0,
+			expectedFound: false,
+		},
+		{
+			name:          "Empty price string",
+			priceText:     "",
+			expectedPrice: 0,
+			expectedFound: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			price, found := parsePrice(tc.priceText)
+			if price != tc.expectedPrice {
+				t.Errorf("expected price to be '%v', but got '%v'", tc.expectedPrice, price)
 			}
 			if found != tc.expectedFound {
 				t.Errorf("expected found to be '%t', but got '%t'", tc.expectedFound, found)

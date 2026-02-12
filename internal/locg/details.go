@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,7 +19,8 @@ type ComicBookDetails struct {
 	IssueNumber int
 	Publisher   string
 	ReleaseDate time.Time
-	CoverPrice  string
+	CoverPrice  int64 // Stored in cents
+	Value       int64 // Stored in cents
 	Description string
 	UPC         string
 	URL         string
@@ -45,10 +47,47 @@ func ScrapeComicBookDetails(parentCtx context.Context, item ComicItem) (*ComicBo
 		chromedp.Click(`#nav-my-details-tab`, chromedp.ByQuery),
 
 		// Wait for content to load
-		chromedp.Sleep(2*time.Second),
+		chromedp.Sleep(1*time.Second),
 
 		// Then get the storage box info
 		chromedp.Value(`#storage_box`, &d.StorageBox, chromedp.ByQuery),
+
+		// MARKET VALUE: Extract the actual value of the comic book from the "Market" tab.
+		chromedp.Click(`#nav-market-tab`, chromedp.ByQuery),
+
+		// Wait for content to load
+		chromedp.Sleep(1*time.Second),
+
+		// The value of the comic book is found in the "Market" tab. We prioritize the "My Comic" value,
+		// as it is most relevant to the user's collection. If it's not available, we fall back to the "Raw" value.
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			var valueStr string
+			myComicSelector := `//div[text()='My Comic' and contains(@class, 'copy-large')]/parent::div/following-sibling::div/div[contains(@class, 'copy-large')]`
+			rawSelector := `//div[text()='Raw' and contains(@class, 'copy-large')]/parent::div/following-sibling::div/div[contains(@class, 'copy-large')]`
+
+			// First, try to get the "My Comic" value.
+			err := chromedp.Text(myComicSelector, &valueStr, chromedp.BySearch).Do(ctx)
+
+			// If "My Comic" value is not found, is empty, or is just a placeholder, try the "Raw" value.
+			if err != nil || strings.TrimSpace(valueStr) == "" || strings.TrimSpace(valueStr) == "-" {
+				if err != nil {
+					log.Printf("[Info] Could not find 'My Comic' value: %v. Falling back to 'Raw'.", err)
+				} else {
+					log.Printf("[Info] 'My Comic' value is empty or a placeholder ('%s'). Falling back to 'Raw'.", valueStr)
+				}
+
+				if err2 := chromedp.Text(rawSelector, &valueStr, chromedp.BySearch).Do(ctx); err2 != nil {
+					log.Printf("[Info] Could not find 'Raw' value either: %v", err2)
+					return nil // Don't block, just log it.
+				}
+			}
+
+			if priceCents, ok := parsePrice(valueStr); ok {
+				d.Value = priceCents
+			}
+
+			return nil
+		}),
 
 		// TODO: Add issue number extraction if needed (not currently implemented
 		// TODO: Click on "Series" and extract the series name?
@@ -62,13 +101,15 @@ func ScrapeComicBookDetails(parentCtx context.Context, item ComicItem) (*ComicBo
 	d.Title = strings.TrimSpace(d.Title)
 	d.Publisher = strings.TrimSpace(d.Publisher)
 	d.UPC = strings.TrimSpace(d.UPC)
+	d.Description = strings.TrimSpace(d.Description)
 	d.StorageBox = strings.TrimSpace(d.StorageBox)
 
 	fmt.Println("------------------------------------------------")
 	fmt.Printf("Title:     %s\n", d.Title)
 	fmt.Printf("Publisher: %s\n", d.Publisher)
 	fmt.Printf("ReleaseDate: %s\n", d.ReleaseDate.Format("02. Jan 2006"))
-	fmt.Printf("Cover Price:   %s\n", d.CoverPrice)
+	fmt.Printf("Cover Price:   $%.2f\n", float64(d.CoverPrice)/100.0)
+	fmt.Printf("Value:   $%.2f\n", float64(d.Value)/100.0)
 	fmt.Printf("Description:   %s\n", d.Description)
 	fmt.Printf("UPC:   %s\n", d.UPC)
 	fmt.Printf("Box:       %s\n", d.StorageBox)
@@ -148,8 +189,8 @@ func fetchExtendedData(d *ComicBookDetails) chromedp.Action {
 			log.Printf("[Info] No price element found with selector: %s\n", priceSelector)
 		}
 
-		if price, ok := extractPrice(rawPriceText); ok {
-			d.CoverPrice = price
+		if priceCents, ok := extractPrice(rawPriceText); ok {
+			d.CoverPrice = priceCents
 		}
 
 		// DESCRIPTION: div with class 'listing-description' inside of div.col12
@@ -164,23 +205,40 @@ func fetchExtendedData(d *ComicBookDetails) chromedp.Action {
 	})
 }
 
-// extractPrice tries to find a price string (e.g., "$3.99") from a raw text input.
+// parsePrice converts a price string (e.g., "$3.99") into an integer in cents (e.g., 399).
+func parsePrice(priceStr string) (int64, bool) {
+	if priceStr == "" {
+		return 0, false
+	}
+	cleanStr := strings.TrimSpace(priceStr)
+	cleanStr = strings.TrimPrefix(cleanStr, "$")
+	floatVal, err := strconv.ParseFloat(cleanStr, 64)
+	if err != nil {
+		log.Printf("[Error] Could not parse price string '%s' to float: %v", cleanStr, err)
+		return 0, false
+	}
+	// Multiply by 100 and add 0.5 for proper rounding before converting to int64
+	totalCents := int64(floatVal*100 + 0.5)
+	return totalCents, true
+}
+
+// extractPrice tries to find a price string (e.g., "$3.99") from a raw text input
+// that might contain other information (e.g., "Comic · 32 pages · $3.99").
 // It assumes the price is the last component of a '·' separated string.
-func extractPrice(rawPriceText string) (string, bool) {
+func extractPrice(rawPriceText string) (int64, bool) {
 	if rawPriceText == "" {
-		return "", false
+		return 0, false
 	}
 
 	parts := strings.Split(rawPriceText, "·")
 	// We are looking for the last part of the string.
 	if len(parts) > 0 {
-		lastPart := strings.TrimSpace(parts[len(parts)-1])
-		if strings.HasPrefix(lastPart, "$") {
-			return lastPart, true
+		priceStr := strings.TrimSpace(parts[len(parts)-1])
+		if strings.HasPrefix(priceStr, "$") {
+			return parsePrice(priceStr)
 		}
 	}
-
-	return "", false
+	return 0, false
 }
 
 // ParseLoCGDate converts a date string from LoCG format to time.Time
