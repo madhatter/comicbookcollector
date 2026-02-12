@@ -1,7 +1,7 @@
 /bin/
 chrome-data/
 comicbookcollector
-scraper
+./scraper
 
 .env
 .DS_Store

@@ -1,6 +1,7 @@
 package locg
 
 import (
+	"strings"
 	"testing"
 	"time"
 )

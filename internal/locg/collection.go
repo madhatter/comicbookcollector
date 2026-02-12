@@ -84,7 +84,7 @@ func GetCollectionLinks(ctx context.Context, username string) ([]ComicItem, erro
 }
 
 // ParseComicID extracts the LoCG comic ID from a given URL or path.
-// Exptected: "/comic/12345/titel-slug" oder "https://league.../comic/12345/..."
+// Exptected: "/comic/12345/titel-slug" or "https://league.../comic/12345/..."
 // Returns: 12345
 func ParseComicID(href string) (int, error) {
 	parts := strings.Split(href, "/")
@@ -94,10 +94,10 @@ func ParseComicID(href string) (int, error) {
 		if part == "comic" && i+1 < len(parts) {
 			id, err := strconv.Atoi(parts[i+1])
 			if err != nil {
-				return 0, fmt.Errorf("Failed to parse comic ID from URL %s: %v", href, err)
+				return 0, fmt.Errorf("failed to parse comic ID from URL %s: %v", href, err)
 			}
 			return id, nil
 		}
 	}
-	return 0, fmt.Errorf("No ID found in URL: %s", href)
+	return 0, fmt.Errorf("no ID found in URL: %s", href)
 }

@@ -2,7 +2,7 @@ package locg
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"log"
 	"strconv"
 	"strings"
@@ -14,7 +14,9 @@ import (
 
 type ComicBookDetails struct {
 	ID          int
+	VariantInfo string
 	Title       string
+	TitleNumber int
 	Series      string
 	IssueNumber int
 	Publisher   string
@@ -25,6 +27,7 @@ type ComicBookDetails struct {
 	UPC         string
 	URL         string
 	StorageBox  string
+	ImageLink   string
 }
 
 // ScrapeComicBookDetails navigates to the given URL and extracts comic book details
@@ -89,31 +92,22 @@ func ScrapeComicBookDetails(parentCtx context.Context, item ComicItem) (*ComicBo
 			return nil
 		}),
 
-		// TODO: Add issue number extraction if needed (not currently implemented
 		// TODO: Click on "Series" and extract the series name?
 	)
 
 	if err != nil {
-		log.Fatalf("[Error] Scraping failed: %v", err)
+		log.Println("[Error] Scraping failed: ", err)
+		return nil, err
 	}
 
 	// Clean up data (trim newlines/spaces)
 	d.Title = strings.TrimSpace(d.Title)
+	d.VariantInfo = strings.TrimSpace(d.VariantInfo)
 	d.Publisher = strings.TrimSpace(d.Publisher)
 	d.UPC = strings.TrimSpace(d.UPC)
 	d.Description = strings.TrimSpace(d.Description)
+	d.ImageLink = strings.TrimSpace(d.ImageLink)
 	d.StorageBox = strings.TrimSpace(d.StorageBox)
-
-	fmt.Println("------------------------------------------------")
-	fmt.Printf("Title:     %s\n", d.Title)
-	fmt.Printf("Publisher: %s\n", d.Publisher)
-	fmt.Printf("ReleaseDate: %s\n", d.ReleaseDate.Format("02. Jan 2006"))
-	fmt.Printf("Cover Price:   $%.2f\n", float64(d.CoverPrice)/100.0)
-	fmt.Printf("Value:   $%.2f\n", float64(d.Value)/100.0)
-	fmt.Printf("Description:   %s\n", d.Description)
-	fmt.Printf("UPC:   %s\n", d.UPC)
-	fmt.Printf("Box:       %s\n", d.StorageBox)
-	fmt.Println("------------------------------------------------")
 
 	return d, err
 }
@@ -122,9 +116,23 @@ func ScrapeComicBookDetails(parentCtx context.Context, item ComicItem) (*ComicBo
 func fetchBasicData(d *ComicBookDetails) chromedp.Action {
 	return chromedp.ActionFunc(func(ctx context.Context) error {
 		// TITLE: h1 inside of div.page-details
-		if err := chromedp.Text(`div.page-details h1`, &d.Title, chromedp.ByQuery).Do(ctx); err != nil {
+		var title string
+		if err := chromedp.Text(`div.page-details h1`, &title, chromedp.ByQuery).Do(ctx); err != nil {
 			log.Printf("[Error] Failed to extract title: %v", err)
 			return err
+		}
+
+		if parts := strings.Split(title, "\n"); len(parts) > 1 {
+			d.Title = parts[0]
+			d.VariantInfo = parts[1]
+		} else {
+			d.Title = title
+		}
+
+		// Try to extract the title number from the title string. This is not always possible, so we log an error if it fails.
+		var err2 error
+		if d.TitleNumber, err2 = extractTitleNumber(d.Title); err2 != nil {
+			log.Printf("[Error] Failed to extract title number: %s\n", err2)
 		}
 
 		// PUBLISHER: Link inside of div.header-intro
@@ -162,7 +170,6 @@ func fetchExtendedData(d *ComicBookDetails) chromedp.Action {
 		// RELEASE DATE: XPath to find the release date link inside the header intro
 		var dateNodes []*cdp.Node
 		if err := chromedp.Nodes(dateSelector, &dateNodes, chromedp.BySearch).Do(ctx); err == nil && len(dateNodes) > 0 {
-			// Wichtig: chromedp.BySearch für XPath nutzen!
 			if err := chromedp.Text(dateSelector, &dateStr, chromedp.BySearch).Do(ctx); err == nil {
 				d.ReleaseDate, err = ParseLoCGDate(dateStr)
 				if err != nil {
@@ -201,8 +208,36 @@ func fetchExtendedData(d *ComicBookDetails) chromedp.Action {
 			chromedp.Text(descriptionSelector, &d.Description, chromedp.ByQuery).Do(ctx)
 		}
 
+		// IMAGE LINK: div with class 'cover-art' and then a link with class 'cover-gallery'
+		imgSelector := `//div[contains(@class, 'cover-art')]/a[contains(@class, 'cover-gallery')]`
+
+		var imgNodes []*cdp.Node
+		if err := chromedp.Nodes(imgSelector, &imgNodes, chromedp.BySearch).Do(ctx); err == nil && len(imgNodes) > 0 {
+			var exists bool
+			if err := chromedp.AttributeValue(imgSelector, "href", &d.ImageLink, &exists, chromedp.BySearch).Do(ctx); err == nil && exists {
+				log.Printf("[Info] Image link: %s\n", d.ImageLink)
+			} else {
+				log.Printf("[Error] Failed to extract image link: %v\n", err)
+			}
+		}
 		return nil
 	})
+}
+
+// extractValueNumber extracts the numeric value from a string like "Issue #12".
+func extractTitleNumber(titleStr string) (int, error) {
+	cleanStr := strings.TrimSpace(titleStr)
+	parts := strings.Split(cleanStr, "#")
+	if len(parts) < 2 {
+		return 0, errors.New("title does not contain an issue number")
+	}
+	numberStr := strings.TrimSpace(parts[len(parts)-1])
+	number, err := strconv.Atoi(numberStr)
+	if err != nil {
+		log.Printf("[Error] Could not parse issue number from string '%s': %v", numberStr, err)
+		return 0, err
+	}
+	return number, nil
 }
 
 // parsePrice converts a price string (e.g., "$3.99") into an integer in cents (e.g., 399).

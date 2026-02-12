@@ -20,17 +20,21 @@ type Session struct {
 }
 
 // NewSession creates a new Chrome instance with a persistent user profile.
-func NewSession(headless bool) *Session {
+func NewSession(headless bool) (*Session, error) {
 	// Determine the path for the user data directory
 	// TODO: Use a folder in user home directory for user data
-	wd, _ := os.Getwd()
+	wd, err := os.Getwd()
+	if err != nil {
+		return &Session{Context: nil, Cancel: nil, allocCancel: nil}, fmt.Errorf("unable to get working directory: %v", err)
+	}
+
 	// We construct an absolute path to avoid locking issues if run from different directories
 	userDataDir := filepath.Join(wd, "chrome-data")
 
 	// Ensure the directory exists
 	if _, err := os.Stat(userDataDir); os.IsNotExist(err) {
-		if err := os.Mkdir(userDataDir, 0755); err != nil {
-			log.Fatal("Could not create chrome-data directory:", err)
+		if err := os.Mkdir(userDataDir, 0o755); err != nil {
+			return &Session{Context: nil, Cancel: nil, allocCancel: nil}, fmt.Errorf("unable to create user data directory: %v", err)
 		}
 	}
 
@@ -52,14 +56,15 @@ func NewSession(headless bool) *Session {
 
 	// Start the browser here to use the session immediately
 	if err := chromedp.Run(ctx); err != nil {
-		log.Fatalln("[Browser] Unable to start:", err)
+		log.Println("[Browser] Unable to start: ", err)
+		return &Session{Context: nil, Cancel: nil, allocCancel: nil}, err
 	}
 
 	return &Session{
 		Context:     ctx,
 		Cancel:      cancel,
 		allocCancel: allocCancel,
-	}
+	}, nil
 }
 
 // Close shuts down the browser and cleans up resources.
