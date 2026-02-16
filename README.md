@@ -82,14 +82,15 @@ This overview helps you navigate the codebase:
 
 - [x] Basic Login & Session Handling
 - [x] Collection Infinite Scroll
-- [ ] **Detailed Metadata Extraction** (UPC, Price, Dates) (In Progress)
-- [ ] SQLite Database Integration
+- [x] Detailed Metadata Extraction (UPC, Price, Dates)
+- [ ] **SQLite Database Integration** (In Progress)
 - [ ] Config file support (YAML/JSON)
 - [ ] Export formats (CSV, JSON)
 
 ## ⚠️ Disclaimer
 
-This tool is for **personal educational purposes and backup** only. Please respect the terms of service of any website you scrape. Do not use this tool to overload servers.
+This tool is for **personal educational purposes and backup** only. Please respect the terms of service of any website you scrape. Do not use this tool to overload servers.  
+The author assumes no responsibility for any legal consequences arising from the use of this tool.
 
 ---
 *Maintained by [Arvid Warnecke](https://github.com/madhatter)*
