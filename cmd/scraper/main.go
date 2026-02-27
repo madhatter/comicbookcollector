@@ -7,6 +7,7 @@ import (
 
 	"github.com/chromedp/chromedp"
 	"github.com/madhatter/comicbookcollector/internal/browser"
+	"github.com/madhatter/comicbookcollector/internal/db"
 	"github.com/madhatter/comicbookcollector/internal/locg"
 )
 
@@ -15,6 +16,16 @@ const targetUsername = "nostalgix"
 const checkURL = "https://leagueofcomicgeeks.com/settings"
 
 func main() {
+	// Open database connection
+	database, err := db.NewDatabase()
+	if err != nil {
+		log.Fatalln("[FATAL] Failed to connect to database:", err)
+	}
+	defer database.Close()
+
+	// Run database migrations to ensure the schema is up to date
+	database.Migrate()
+
 	// 1. Initialize Browser Session
 	// headless = false so you can see the window
 	sess, err := browser.NewSession(false)
@@ -62,7 +73,7 @@ func main() {
 		fmt.Println("------------------------------------------------")
 		fmt.Printf("Title:\t\t\t\t%s\n", details.Title)
 		fmt.Printf("VariantInfo:\t\t\t%s\n", details.VariantInfo)
-		fmt.Printf("Title Number:\t\t\t%d\n", details.TitleNumber)
+		fmt.Printf("Issue Number:\t\t\t%d\n", details.IssueNumber)
 		fmt.Printf("Publisher:\t\t\t%s\n", details.Publisher)
 		fmt.Printf("ReleaseDate:\t\t\t%s\n", details.ReleaseDate.Format("02. Jan 2006"))
 		fmt.Printf("Cover Price:\t\t\t$%.2f\n", float64(details.CoverPrice)/100.0)
