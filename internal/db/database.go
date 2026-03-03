@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/madhatter/comicbookcollector/internal/locg"
 	_ "modernc.org/sqlite"
 )
 
@@ -52,6 +53,50 @@ func (db *Database) Migrate() error {
 	_, err := db.conn.Exec(schema)
 	if err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)
+	}
+
+	return nil
+}
+
+func (db *Database) SaveComic(comic *locg.ComicBookDetails) error {
+	query := `
+	INSERT INTO comics (
+		upc, title, issue_number, cover_price, value, variant_info, series, publisher,
+		description, release_date, locg_id, locg_url, locg_cover_image_url
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	ON CONFLICT(locg_id) DO UPDATE SET
+		upc=excluded.upc,
+		title=excluded.title,
+		issue_number=excluded.issue_number,
+		cover_price=excluded.cover_price,
+		value=excluded.value,
+		variant_info=excluded.variant_info,
+		series=excluded.series,
+		publisher=excluded.publisher,
+		description=excluded.description,
+		release_date=excluded.release_date,
+		locg_url=excluded.locg_url,
+		locg_cover_image_url=excluded.locg_cover_image_url;
+	`
+
+	_, err := db.conn.Exec(query,
+		comic.UPC,
+		comic.Title,
+		comic.IssueNumber,
+		comic.CoverPrice,
+		comic.Value,
+		comic.VariantInfo,
+		comic.Series,
+		comic.Publisher,
+		comic.Description,
+		comic.ReleaseDate,
+		comic.ID,
+		comic.URL,
+		comic.ImageLink,
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to save comic: %w", err)
 	}
 
 	return nil

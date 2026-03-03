@@ -24,7 +24,9 @@ func main() {
 	defer database.Close()
 
 	// Run database migrations to ensure the schema is up to date
-	database.Migrate()
+	if err = database.Migrate(); err != nil {
+		log.Fatalln("[FATAL] Failed to migrate database:", err)
+	}
 
 	// 1. Initialize Browser Session
 	// headless = false so you can see the window
@@ -35,13 +37,13 @@ func main() {
 	defer sess.Close()
 
 	// 2. Verify Login Status
-	if err := sess.EnsureLoggedIn(targetUsername, checkURL); err != nil {
+	if err = sess.EnsureLoggedIn(targetUsername, checkURL); err != nil {
 		log.Printf("[Warning] %v", err)
 		log.Println("Please log in manually via the browser window.")
 		log.Println("Waiting 60 seconds for manual login...")
 
 		// Wait on the main browser context
-		err := chromedp.Run(sess.Context, chromedp.Sleep(60*time.Second))
+		err = chromedp.Run(sess.Context, chromedp.Sleep(60*time.Second))
 
 		if err != nil {
 			log.Fatalln("[FATAL] Session died:", err)
