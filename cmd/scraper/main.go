@@ -85,5 +85,13 @@ func main() {
 		fmt.Printf("UPC:\t\t\t\t%s\n", details.UPC)
 		fmt.Printf("Box:\t\t\t\t%s\n", details.StorageBox)
 		fmt.Println("------------------------------------------------")
+
+		// 5. Save the details to the database
+		if err = database.SaveComic(details); err != nil {
+			log.Printf("-> ERROR saving to database: %v\n", err)
+			continue
+		}
+
+		log.Printf("-> Successfully saved to database.\n")
 	}
 }
