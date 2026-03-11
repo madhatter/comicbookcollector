@@ -8,13 +8,11 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const dbFile = "cbc.db"
-
 type Database struct {
 	conn *sql.DB
 }
 
-func NewDatabase() (*Database, error) {
+func NewDatabase(dbFile string) (*Database, error) {
 	conn, err := sql.Open("sqlite", dbFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
@@ -62,8 +60,8 @@ func (db *Database) SaveComic(comic *locg.ComicBookDetails) error {
 	query := `
 	INSERT INTO comics (
 		upc, title, issue_number, cover_price, value, variant_info, series, publisher,
-		description, release_date, locg_id, locg_url, locg_cover_image_url
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		description, release_date, locg_id, locg_url, locg_cover_image_url, storage_box
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	ON CONFLICT(locg_id) DO UPDATE SET
 		upc=excluded.upc,
 		title=excluded.title,
@@ -76,7 +74,8 @@ func (db *Database) SaveComic(comic *locg.ComicBookDetails) error {
 		description=excluded.description,
 		release_date=excluded.release_date,
 		locg_url=excluded.locg_url,
-		locg_cover_image_url=excluded.locg_cover_image_url;
+		locg_cover_image_url=excluded.locg_cover_image_url,
+		storage_box=excluded.storage_box;
 	`
 
 	_, err := db.conn.Exec(query,
@@ -89,10 +88,11 @@ func (db *Database) SaveComic(comic *locg.ComicBookDetails) error {
 		comic.Series,
 		comic.Publisher,
 		comic.Description,
-		comic.ReleaseDate,
+		comic.ReleaseDate.Format("2006-01-02"),
 		comic.ID,
 		comic.URL,
 		comic.ImageLink,
+		comic.StorageBox,
 	)
 
 	if err != nil {

@@ -14,10 +14,11 @@ import (
 // Configuration
 const targetUsername = "nostalgix"
 const checkURL = "https://leagueofcomicgeeks.com/settings"
+const dbFile = "cbc.db"
 
 func main() {
 	// Open database connection
-	database, err := db.NewDatabase()
+	database, err := db.NewDatabase(dbFile)
 	if err != nil {
 		log.Fatalln("[FATAL] Failed to connect to database:", err)
 	}

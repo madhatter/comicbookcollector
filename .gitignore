@@ -2,6 +2,7 @@
 chrome-data/
 comicbookcollector
 ./scraper
+*.db
 
 .env
 .DS_Store
