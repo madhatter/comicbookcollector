@@ -17,6 +17,18 @@ All three are from [Charm](https://charm.sh) and were released as v2 in early 20
 - Mark comics as read / update storage box
 - Basic stats (total value, issues per publisher, …)
 
+## Scraper improvements
+
+### Progress bar during scraping
+Bubbles (v2) ships a ready-made `progress` component. Since the total number of comics is known before scraping starts (`len(items)`), the bar can be driven deterministically — increment by 1 after each comic is processed. Could be added to the scraper standalone, without needing a full TUI first.
+
+### Skip already-known comics
+Before scraping detail pages, fetch all existing `locg_id` values from the DB into a map, then skip any comic whose ID is already present. Requires a `GetAllIDs() ([]int, error)` function on `Database`. Good first use case for Goroutines later (see below).
+
+### Goroutines for parallel scraping
+Scraping 1000+ comics sequentially is slow (each page has a 15s timeout). Goroutines could parallelize the detail fetching — but needs careful rate limiting to avoid being blocked by LoCG, and coordinating multiple chromedp contexts is non-trivial. Good learning project for Go concurrency once the basics are solid.
+
 ## Prerequisites
 
 - SQLite integration must be complete first (data needs to be persisted before it can be displayed)
+- A CLI layer (Cobra) will be introduced before the TUI — see `docs/cli-ideas.md`
