@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/madhatter/comicbookcollector/internal/locg"
 	_ "modernc.org/sqlite"
@@ -100,6 +101,149 @@ func (db *Database) SaveComic(comic *locg.ComicBookDetails) error {
 	}
 
 	return nil
+}
+
+func (db *Database) GetAllComics() ([]*locg.ComicBookDetails, error) {
+	query := `SELECT upc, title, issue_number, cover_price, value, variant_info, series, publisher,
+		description, release_date, locg_id, locg_url, locg_cover_image_url, storage_box FROM comics ORDER BY release_date DESC;`
+
+	rows, err := db.conn.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query comics: %w", err)
+	}
+	defer rows.Close()
+
+	var comics []*locg.ComicBookDetails
+	for rows.Next() {
+		var comic locg.ComicBookDetails
+		var releaseDateStr string
+
+		err := rows.Scan(
+			&comic.UPC,
+			&comic.Title,
+			&comic.IssueNumber,
+			&comic.CoverPrice,
+			&comic.Value,
+			&comic.VariantInfo,
+			&comic.Series,
+			&comic.Publisher,
+			&comic.Description,
+			&releaseDateStr,
+			&comic.ID,
+			&comic.URL,
+			&comic.ImageLink,
+			&comic.StorageBox,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan comic: %w", err)
+		}
+
+		comic.ReleaseDate, _ = time.Parse("2006-01-02", releaseDateStr)
+		comics = append(comics, &comic)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating comics: %w", err)
+	}
+
+	return comics, nil
+}
+
+func (db *Database) GetComicByLoCGID(id int) (*locg.ComicBookDetails, error) {
+	query := `SELECT upc, title, issue_number, cover_price, value, variant_info, series, publisher,
+		description, release_date, locg_id, locg_url, locg_cover_image_url, storage_box FROM comics WHERE locg_id = ?;`
+
+	row := db.conn.QueryRow(query, id)
+
+	var comic locg.ComicBookDetails
+	var releaseDateStr string
+
+	err := row.Scan(
+		&comic.UPC,
+		&comic.Title,
+		&comic.IssueNumber,
+		&comic.CoverPrice,
+		&comic.Value,
+		&comic.VariantInfo,
+		&comic.Series,
+		&comic.Publisher,
+		&comic.Description,
+		&releaseDateStr,
+		&comic.ID,
+		&comic.URL,
+		&comic.ImageLink,
+		&comic.StorageBox,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // Not found
+		}
+		return nil, fmt.Errorf("failed to query comic by ID: %w", err)
+	}
+
+	comic.ReleaseDate, _ = time.Parse("2006-01-02", releaseDateStr)
+	return &comic, nil
+}
+
+func (db *Database) GetComicByID(id int) (*locg.ComicBookDetails, error) {
+	query := `SELECT upc, title, issue_number, cover_price, value, variant_info, series, publisher,
+		description, release_date, locg_id, locg_url, locg_cover_image_url, storage_box FROM comics WHERE id = ?;`
+
+	row := db.conn.QueryRow(query, id)
+
+	var comic locg.ComicBookDetails
+	var releaseDateStr string
+
+	err := row.Scan(
+		&comic.UPC,
+		&comic.Title,
+		&comic.IssueNumber,
+		&comic.CoverPrice,
+		&comic.Value,
+		&comic.VariantInfo,
+		&comic.Series,
+		&comic.Publisher,
+		&comic.Description,
+		&releaseDateStr,
+		&comic.ID,
+		&comic.URL,
+		&comic.ImageLink,
+		&comic.StorageBox,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // Not found
+		}
+		return nil, fmt.Errorf("failed to query comic by ID: %w", err)
+	}
+
+	comic.ReleaseDate, _ = time.Parse("2006-01-02", releaseDateStr)
+	return &comic, nil
+}
+
+func (db *Database) GetAllLoCGIDs() ([]int, error) {
+	query := `SELECT locg_id FROM comics;`
+
+	rows, err := db.conn.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query LoCG IDs: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []int
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("failed to scan LoCG ID: %w", err)
+		}
+		ids = append(ids, id)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating LoCG IDs: %w", err)
+	}
+
+	return ids, nil
 }
 
 func (db *Database) Close() error {

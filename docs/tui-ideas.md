@@ -30,5 +30,5 @@ Scraping 1000+ comics sequentially is slow (each page has a 15s timeout). Gorout
 
 ## Prerequisites
 
-- SQLite integration must be complete first (data needs to be persisted before it can be displayed)
+- SQLite integration is complete
 - A CLI layer (Cobra) will be introduced before the TUI — see `docs/cli-ideas.md`

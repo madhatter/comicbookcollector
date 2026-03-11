@@ -26,6 +26,6 @@ This would be a good first hands-on use of the Bubble Tea / Bubbles ecosystem be
 
 ## Next steps
 
-- Finish SQLite persistence layer first (see `docs/database-ideas.md`)
+- SQLite persistence layer is complete (see `docs/database-ideas.md` for future enrichment ideas)
 - Then introduce Cobra and restructure `cmd/`
 - Add progress bar as part of the `scrape` subcommand
