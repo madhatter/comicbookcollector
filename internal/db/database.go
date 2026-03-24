@@ -9,10 +9,12 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// Database provides the connection and methods for interacting with the SQLite database.
 type Database struct {
 	conn *sql.DB
 }
 
+// NewDatabase initializes a new database connection to the specified SQLite file.
 func NewDatabase(dbFile string) (*Database, error) {
 	conn, err := sql.Open("sqlite", dbFile)
 	if err != nil {
@@ -28,6 +30,7 @@ func NewDatabase(dbFile string) (*Database, error) {
 	return db, nil
 }
 
+// Migrate creates the necessary tables if they don't already exist.
 func (db *Database) Migrate() error {
 	schema := `
 	CREATE TABLE IF NOT EXISTS comics (
@@ -57,6 +60,7 @@ func (db *Database) Migrate() error {
 	return nil
 }
 
+// SaveComic inserts a new comic book into the database or updates it if it already exists (based on locg_id).
 func (db *Database) SaveComic(comic *locg.ComicBookDetails) error {
 	query := `
 	INSERT INTO comics (
@@ -103,6 +107,7 @@ func (db *Database) SaveComic(comic *locg.ComicBookDetails) error {
 	return nil
 }
 
+// GetAllComics retrieves all comic books from the database, ordered by release date (newest first).
 func (db *Database) GetAllComics() ([]*locg.ComicBookDetails, error) {
 	query := `SELECT upc, title, issue_number, cover_price, value, variant_info, series, publisher,
 		description, release_date, locg_id, locg_url, locg_cover_image_url, storage_box FROM comics ORDER BY release_date DESC;`
@@ -149,6 +154,7 @@ func (db *Database) GetAllComics() ([]*locg.ComicBookDetails, error) {
 	return comics, nil
 }
 
+// GetComicByLoCGID retrieves a comic book from the database by its LoCG ID.
 func (db *Database) GetComicByLoCGID(id int) (*locg.ComicBookDetails, error) {
 	query := `SELECT upc, title, issue_number, cover_price, value, variant_info, series, publisher,
 		description, release_date, locg_id, locg_url, locg_cover_image_url, storage_box FROM comics WHERE locg_id = ?;`
@@ -185,6 +191,7 @@ func (db *Database) GetComicByLoCGID(id int) (*locg.ComicBookDetails, error) {
 	return &comic, nil
 }
 
+// GetComicByID retrieves a comic book from the database by its internal ID.
 func (db *Database) GetComicByID(id int) (*locg.ComicBookDetails, error) {
 	query := `SELECT upc, title, issue_number, cover_price, value, variant_info, series, publisher,
 		description, release_date, locg_id, locg_url, locg_cover_image_url, storage_box FROM comics WHERE id = ?;`
@@ -221,6 +228,7 @@ func (db *Database) GetComicByID(id int) (*locg.ComicBookDetails, error) {
 	return &comic, nil
 }
 
+// GetAllLoCGIDs returns a slice of all LoCG IDs currently stored in the database.
 func (db *Database) GetAllLoCGIDs() ([]int, error) {
 	query := `SELECT locg_id FROM comics;`
 
@@ -246,6 +254,7 @@ func (db *Database) GetAllLoCGIDs() ([]int, error) {
 	return ids, nil
 }
 
+// Close shuts down the database connection.
 func (db *Database) Close() error {
 	return db.conn.Close()
 }
