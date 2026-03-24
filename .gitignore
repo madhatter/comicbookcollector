@@ -2,8 +2,11 @@
 chrome-data/
 comicbookcollector
 ./scraper
+*.db
 
 .env
 .DS_Store
 *.log
 *.tmp
+
+CLAUDE.md

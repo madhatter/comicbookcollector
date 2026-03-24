@@ -16,7 +16,6 @@ type ComicBookDetails struct {
 	ID          int
 	VariantInfo string
 	Title       string
-	TitleNumber int
 	Series      string
 	IssueNumber int
 	Publisher   string
@@ -131,7 +130,7 @@ func fetchBasicData(d *ComicBookDetails) chromedp.Action {
 
 		// Try to extract the title number from the title string. This is not always possible, so we log an error if it fails.
 		var err2 error
-		if d.TitleNumber, err2 = extractTitleNumber(d.Title); err2 != nil {
+		if d.IssueNumber, err2 = extractTitleNumber(d.Title); err2 != nil {
 			log.Printf("[Error] Failed to extract title number: %s\n", err2)
 		}
 

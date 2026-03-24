@@ -7,14 +7,28 @@ import (
 
 	"github.com/chromedp/chromedp"
 	"github.com/madhatter/comicbookcollector/internal/browser"
+	"github.com/madhatter/comicbookcollector/internal/db"
 	"github.com/madhatter/comicbookcollector/internal/locg"
 )
 
 // Configuration
 const targetUsername = "nostalgix"
 const checkURL = "https://leagueofcomicgeeks.com/settings"
+const dbFile = "cbc.db"
 
 func main() {
+	// Open database connection
+	database, err := db.NewDatabase(dbFile)
+	if err != nil {
+		log.Fatalln("[FATAL] Failed to connect to database:", err)
+	}
+	defer database.Close()
+
+	// Run database migrations to ensure the schema is up to date
+	if err = database.Migrate(); err != nil {
+		log.Fatalln("[FATAL] Failed to migrate database:", err)
+	}
+
 	// 1. Initialize Browser Session
 	// headless = false so you can see the window
 	sess, err := browser.NewSession(false)
@@ -24,13 +38,13 @@ func main() {
 	defer sess.Close()
 
 	// 2. Verify Login Status
-	if err := sess.EnsureLoggedIn(targetUsername, checkURL); err != nil {
+	if err = sess.EnsureLoggedIn(targetUsername, checkURL); err != nil {
 		log.Printf("[Warning] %v", err)
 		log.Println("Please log in manually via the browser window.")
 		log.Println("Waiting 60 seconds for manual login...")
 
 		// Wait on the main browser context
-		err := chromedp.Run(sess.Context, chromedp.Sleep(60*time.Second))
+		err = chromedp.Run(sess.Context, chromedp.Sleep(60*time.Second))
 
 		if err != nil {
 			log.Fatalln("[FATAL] Session died:", err)
@@ -62,7 +76,7 @@ func main() {
 		fmt.Println("------------------------------------------------")
 		fmt.Printf("Title:\t\t\t\t%s\n", details.Title)
 		fmt.Printf("VariantInfo:\t\t\t%s\n", details.VariantInfo)
-		fmt.Printf("Title Number:\t\t\t%d\n", details.TitleNumber)
+		fmt.Printf("Issue Number:\t\t\t%d\n", details.IssueNumber)
 		fmt.Printf("Publisher:\t\t\t%s\n", details.Publisher)
 		fmt.Printf("ReleaseDate:\t\t\t%s\n", details.ReleaseDate.Format("02. Jan 2006"))
 		fmt.Printf("Cover Price:\t\t\t$%.2f\n", float64(details.CoverPrice)/100.0)
@@ -72,5 +86,13 @@ func main() {
 		fmt.Printf("UPC:\t\t\t\t%s\n", details.UPC)
 		fmt.Printf("Box:\t\t\t\t%s\n", details.StorageBox)
 		fmt.Println("------------------------------------------------")
+
+		// 5. Save the details to the database
+		if err = database.SaveComic(details); err != nil {
+			log.Printf("-> ERROR saving to database: %v\n", err)
+			continue
+		}
+
+		log.Printf("-> Successfully saved to database.\n")
 	}
 }
