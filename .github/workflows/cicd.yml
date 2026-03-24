@@ -42,13 +42,18 @@ jobs:
 
     - name: Checkout code
       uses: actions/checkout@v6
-    
+
+    - name: Install Chrome
+      uses: browser-actions/setup-chrome@v1
+      with:
+        chrome-version: stable
+
     - name: Get dependencies
       run: go mod download
-    
+
     - name: Run Tests
       run: go test -v ./...
-    
+
   build:
     name: Build (${{ matrix.goos }}/${{ matrix.goarch }})
     needs: release
