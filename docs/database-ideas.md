@@ -2,6 +2,14 @@
 
 Ideas for enriching the local database beyond what LoCG provides — e.g. authors, artists, story arcs, characters.
 
+## Metron API (primary enrichment source)
+
+- REST API for comic book metadata, lookup by UPC possible
+- Covers a broad range of publishers
+- Planned integration: a reusable `EnrichByUPC(upc string)` function that fetches a defined set of metadata fields (authors, artists, story arcs, characters, …) and updates the local DB
+- Use case 1: enrich existing LoCG collection after initial scrape
+- Use case 2: enrich comics scanned via the barcode scanner in `../comicscanner`
+
 ## Potential data sources
 
 ### Marvel API
