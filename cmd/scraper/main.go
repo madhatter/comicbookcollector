@@ -1,14 +1,16 @@
 package main
 
 import (
-	"fmt"
 	"log"
+	"os"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/chromedp/chromedp"
 	"github.com/madhatter/comicbookcollector/internal/browser"
 	"github.com/madhatter/comicbookcollector/internal/db"
 	"github.com/madhatter/comicbookcollector/internal/locg"
+	"github.com/madhatter/comicbookcollector/internal/ui"
 )
 
 // Configuration
@@ -17,6 +19,14 @@ const checkURL = "https://leagueofcomicgeeks.com/settings"
 const dbFile = "cbc.db"
 
 func main() {
+	// Initialize logging
+	logFile, err := os.OpenFile("cbc.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		log.Fatalln("Failed to open log file:", err)
+	}
+	defer logFile.Close()
+	log.SetOutput(logFile)
+
 	// Open database connection
 	database, err := db.NewDatabase(dbFile)
 	if err != nil {
@@ -64,8 +74,24 @@ func main() {
 	// For demonstration, we'll just scrape the first few items to avoid long runtimes during testing.
 	//limit := min(len(items), 300)
 
+	p := tea.NewProgram(ui.NewProgressModel(len(items)))
+	done := make(chan struct{})
+
+	go func() {
+		p.Run()
+		close(done)
+	}()
+
 	for i, item := range items {
 		log.Printf("[%d/%d] Scrape: %s\n", i+1, len(items), item.URL)
+
+		select {
+		case <-done:
+			log.Println("Progress UI has finished. Stopping scraping.")
+			return
+		default:
+			// Continue with scraping
+		}
 
 		details, err := locg.ScrapeComicBookDetails(sess.Context, item)
 		if err != nil {
@@ -73,19 +99,20 @@ func main() {
 			continue
 		}
 
-		fmt.Println("------------------------------------------------")
-		fmt.Printf("Title:\t\t\t\t%s\n", details.Title)
-		fmt.Printf("VariantInfo:\t\t\t%s\n", details.VariantInfo)
-		fmt.Printf("Issue Number:\t\t\t%d\n", details.IssueNumber)
-		fmt.Printf("Publisher:\t\t\t%s\n", details.Publisher)
-		fmt.Printf("ReleaseDate:\t\t\t%s\n", details.ReleaseDate.Format("02. Jan 2006"))
-		fmt.Printf("Cover Price:\t\t\t$%.2f\n", float64(details.CoverPrice)/100.0)
-		fmt.Printf("Description:\t\t\t%s\n", details.Description)
-		fmt.Printf("Value:\t\t\t\t$%.2f\n", float64(details.Value)/100.0)
-		fmt.Printf("ImageUrl:\t\t\t%s\n", details.ImageLink)
-		fmt.Printf("UPC:\t\t\t\t%s\n", details.UPC)
-		fmt.Printf("Box:\t\t\t\t%s\n", details.StorageBox)
-		fmt.Println("------------------------------------------------")
+		p.Send(ui.ComicScrapeMessage{
+			Current: i + 1,
+			Detail: ui.ComicDetail{
+				Title:       details.Title,
+				IssueNumber: details.IssueNumber,
+				Publisher:   details.Publisher,
+				ReleaseDate: details.ReleaseDate,
+				CoverPrice:  details.CoverPrice,
+				Value:       details.Value,
+				ImageUrl:    details.ImageLink,
+				UPC:         details.UPC,
+				Box:         details.StorageBox,
+			},
+		})
 
 		// 5. Save the details to the database
 		if err = database.SaveComic(details); err != nil {
@@ -95,4 +122,6 @@ func main() {
 
 		log.Printf("-> Successfully saved to database.\n")
 	}
+	p.Quit()
+	<-done // Wait for the progress UI to finish
 }
