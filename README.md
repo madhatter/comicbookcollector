@@ -20,9 +20,11 @@ It uses a headless browser approach to handle dynamic content, infinite scrollin
 
 ## 🛠️ Tech Stack
 
-* **Language:** Go (Golang) 1.23+
-* **Core Library:** [chromedp](https://github.com/chromedp/chromedp) (Chrome DevTools Protocol)
-* **Architecture:** Modular design separating browser logic (`internal/browser`) from business logic (`internal/locg`).
+* **Language:** Go (Golang) 1.26+
+* **Browser Automation:** [chromedp](https://github.com/chromedp/chromedp) (Chrome DevTools Protocol)
+* **Database:** [modernc.org/sqlite](https://gitlab.com/cznic/sqlite) — CGO-free SQLite driver
+* **Terminal UI:** [Bubble Tea / Bubbles / Lip Gloss v2](https://charm.sh) — progress bar and scraper UI
+* **Architecture:** Modular design separating browser logic (`internal/browser`), domain logic (`internal/locg`), database (`internal/db`), and UI (`internal/ui`).
 
 ## 📦 Installation & Usage
 
@@ -70,10 +72,13 @@ This overview helps you navigate the codebase:
 .
 ├── .github/            # CI/CD Workflows (GitHub Actions)
 ├── cmd/
-│   └── scraper/        # Application Entrypoint (main.go)
+│   └── scraper/        # Application entrypoint (main.go)
+├── docs/               # Planning notes and ideas
 ├── internal/
-│   ├── browser/        # Browser initialization & generic actions
-│   └── locg/           # League of Comic Geeks specific logic (Parsing, Models)
+│   ├── browser/        # Browser initialisation & generic actions
+│   ├── db/             # SQLite database layer (schema, queries)
+│   ├── locg/           # League of Comic Geeks domain logic (scraping, models)
+│   └── ui/             # Terminal UI components (progress bar, Bubble Tea)
 ├── go.mod              # Module definition
 └── README.md           # This file
 ```
@@ -83,9 +88,10 @@ This overview helps you navigate the codebase:
 - [x] Basic Login & Session Handling
 - [x] Collection Infinite Scroll
 - [x] Detailed Metadata Extraction (UPC, Price, Dates)
-- [ ] **SQLite Database Integration** (In Progress)
+- [x] **SQLite Database Integration**
+- [ ] CLI layer with subcommands (Cobra)
 - [ ] Config file support (YAML/JSON)
-- [ ] Export formats (CSV, JSON)
+- [ ] TUI for browsing and managing the local collection
 
 ## ⚠️ Disclaimer
 
