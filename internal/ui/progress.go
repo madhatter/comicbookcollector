@@ -7,6 +7,7 @@ import (
 
 	"charm.land/bubbles/v2/progress"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 const (
@@ -14,10 +15,57 @@ const (
 	maxWidth = 80
 )
 
+var asciiLogo = `
+     ████████████████████████      ██████████████████████       ███████████████████████
+    ██████████████████████████   ████████████████████████████  ██████████████████████████
+    ████                         ████                  █████   ████
+    ████                         ████                   ████   ████
+    ████                         █████████████████████         ████
+    ████                         ███████████████████████████   ████
+    ████                         ████                   █████  ████
+    ████                         ████                    ████  ████
+    ██████████████████████████   ████████████████████████████  ██████████████████████████
+     ████████████████████████      ██████████████████████       ███████████████████████  `
+
+func header() string {
+	borderStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62")).
+		Padding(0, 4).
+		Foreground(lipgloss.Color("63")).
+		Width(maxWidth + 25)
+
+	return borderStyle.Render(asciiLogo + "\n    Comic Book Collector")
+}
+
+func showComicDetail(detail ComicDetail) string {
+	borderStyle := lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62")).
+		Padding(0, 6).
+		Foreground(lipgloss.White).
+		Width(maxWidth + 25)
+
+	pad := strings.Repeat(" ", padding)
+
+	return borderStyle.Render(
+		"\n\n" +
+			pad + fmt.Sprintf("%-20s %s\n", "Title:", detail.Title) +
+			pad + fmt.Sprintf("%-20s %d\n", "Issue Number:", detail.IssueNumber) +
+			pad + fmt.Sprintf("%-20s %s\n", "Publisher:", detail.Publisher) +
+			pad + fmt.Sprintf("%-20s %s\n", "ReleaseDate:", detail.ReleaseDate.Format("02. Jan 2006")) +
+			pad + fmt.Sprintf("%-20s %.2f\n", "Cover Price:", float64(detail.CoverPrice)/100.0) +
+			pad + fmt.Sprintf("%-20s %.2f\n", "Value:", float64(detail.Value)/100.0) +
+			pad + fmt.Sprintf("%-20s %s\n", "UPC:", detail.UPC) +
+			pad + fmt.Sprintf("%-20s %s\n", "Box:", detail.Box) +
+			"\n\n")
+}
+
 type model struct {
 	progress     progress.Model
 	current      int
 	total        int
+	status       string
 	latestDetail ComicDetail
 }
 
@@ -28,21 +76,22 @@ type ComicDetail struct {
 	ReleaseDate time.Time
 	CoverPrice  int64
 	Value       int64
-	ImageUrl    string
 	UPC         string
 	Box         string
 }
 
 type ComicScrapeMessage struct {
-	Current int
-	Detail  ComicDetail
+	Total         int
+	Current       int
+	StatusMessage string
+	Detail        ComicDetail
 }
 
-func NewProgressModel(total int) model {
+func NewProgressModel() model {
 	return model{
 		progress: progress.New(progress.WithDefaultBlend()),
 		current:  0,
-		total:    total,
+		total:    0,
 	}
 }
 
@@ -53,9 +102,14 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case ComicScrapeMessage:
+		m.total = msg.Total
 		m.current = msg.Current
+		m.status = msg.StatusMessage
 		m.latestDetail = msg.Detail
-		cmd := m.progress.SetPercent(float64(m.current) / float64(m.total))
+		var cmd tea.Cmd
+		if m.total > 0 {
+			cmd = m.progress.SetPercent(float64(m.current) / float64(m.total))
+		}
 		return m, cmd
 	case tea.KeyPressMsg:
 		switch msg.String() {
@@ -82,20 +136,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() tea.View {
 	pad := strings.Repeat(" ", padding)
-	v := tea.NewView("\n" +
-		pad + "Scraping comics.... " +
-		m.progress.View() +
-		fmt.Sprintf(" %d/%d", m.current, m.total) +
-		"\n\n" +
-		pad + fmt.Sprintf("Title:\t\t\t\t%s\n", m.latestDetail.Title) +
-		pad + fmt.Sprintf("Issue Number:\t\t\t%d\n", m.latestDetail.IssueNumber) +
-		pad + fmt.Sprintf("Publisher:\t\t\t%s\n", m.latestDetail.Publisher) +
-		pad + fmt.Sprintf("ReleaseDate:\t\t\t%s\n", m.latestDetail.ReleaseDate.Format("02. Jan 2006")) +
-		pad + fmt.Sprintf("Cover Price:\t\t\t$%.2f\n", float64(m.latestDetail.CoverPrice)/100.0) +
-		pad + fmt.Sprintf("Value:\t\t\t\t$%.2f\n", float64(m.latestDetail.Value)/100.0) +
-		pad + fmt.Sprintf("UPC:\t\t\t\t%s\n", m.latestDetail.UPC) +
-		pad + fmt.Sprintf("Box:\t\t\t\t%s\n", m.latestDetail.Box) +
-		"\n\n")
+	var content string
+	content = header() + "\n\n"
+	if m.total == 0 {
+		content += "\n" + pad + m.status + "\n\n"
+	} else if m.current == 0 {
+		content += "\n" +
+			pad + m.status +
+			m.progress.View() +
+			fmt.Sprintf(" %d/%d", m.current, m.total)
+	} else {
+		content += "\n" +
+			pad + m.status +
+			m.progress.View() +
+			fmt.Sprintf(" %d/%d", m.current, m.total) +
+			"\n\n\n" +
+			showComicDetail(m.latestDetail) +
+			"\n\n"
+	}
+	v := tea.NewView(content)
 	v.AltScreen = true
 	return v
 }
