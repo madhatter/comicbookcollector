@@ -27,24 +27,32 @@ var asciiLogo = `
     ██████████████████████████   ████████████████████████████  ██████████████████████████
      ████████████████████████      ██████████████████████       ███████████████████████  `
 
-func header() string {
+func header(width int) string {
+	w := min(width-2, maxWidth+25)
+	if w <= 0 {
+		w = maxWidth + 25
+	}
 	borderStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("62")).
 		Padding(0, 4).
 		Foreground(lipgloss.Color("63")).
-		Width(maxWidth + 25)
+		Width(w)
 
-	return borderStyle.Render(asciiLogo + "\n    Comic Book Collector")
+	return borderStyle.Render(asciiLogo + "\n     Comic Book Collector")
 }
 
-func showComicDetail(detail ComicDetail) string {
+func showComicDetail(detail ComicDetail, width int) string {
+	w := min(width-2, maxWidth+25)
+	if w <= 0 {
+		w = maxWidth + 25
+	}
 	borderStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("62")).
 		Padding(0, 6).
 		Foreground(lipgloss.White).
-		Width(maxWidth + 25)
+		Width(w)
 
 	pad := strings.Repeat(" ", padding)
 
@@ -67,6 +75,7 @@ type model struct {
 	total        int
 	status       string
 	latestDetail ComicDetail
+	width        int
 }
 
 type ComicDetail struct {
@@ -118,6 +127,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case tea.WindowSizeMsg:
+		m.width = msg.Width
 		m.progress.SetWidth(msg.Width - padding*2 - 4)
 		if m.progress.Width() > maxWidth {
 			m.progress.SetWidth(maxWidth)
@@ -137,22 +147,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) View() tea.View {
 	pad := strings.Repeat(" ", padding)
 	var content string
-	content = header() + "\n\n"
+	content = header(m.width) + "\n\n" +
+		pad + "Fetching comic books. Press Ctrl+C or Q to quit"
 	if m.total == 0 {
 		content += "\n" + pad + m.status + "\n\n"
-	} else if m.current == 0 {
-		content += "\n" +
-			pad + m.status +
-			m.progress.View() +
-			fmt.Sprintf(" %d/%d", m.current, m.total)
 	} else {
 		content += "\n" +
 			pad + m.status +
 			m.progress.View() +
-			fmt.Sprintf(" %d/%d", m.current, m.total) +
-			"\n\n\n" +
-			showComicDetail(m.latestDetail) +
-			"\n\n"
+			fmt.Sprintf(" %d/%d", m.current, m.total)
+
+		if m.latestDetail.Title != "" {
+			content += "\n\n\n" +
+				showComicDetail(m.latestDetail, m.width) +
+				"\n\n"
+		}
 	}
 	v := tea.NewView(content)
 	v.AltScreen = true
