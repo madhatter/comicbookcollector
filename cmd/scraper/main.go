@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -10,6 +12,7 @@ import (
 	"github.com/madhatter/comicbookcollector/internal/browser"
 	"github.com/madhatter/comicbookcollector/internal/db"
 	"github.com/madhatter/comicbookcollector/internal/locg"
+	"github.com/madhatter/comicbookcollector/internal/metron"
 	"github.com/madhatter/comicbookcollector/internal/ui"
 )
 
@@ -51,6 +54,24 @@ func main() {
 	p.Send(ui.ComicScrapeMessage{
 		StatusMessage: "Initializing... ",
 	})
+
+	// Initialize Metron API client
+	mctx := context.Background()
+
+	username := os.Getenv("METRON_USER")
+	password := os.Getenv("METRON_PASS")
+
+	mclient, err := metron.NewClient(username, password)
+	if err != nil {
+		log.Fatalf("Failed to create Metron client: %v", err)
+	} else {
+		log.Println("Validating Metron credentials...")
+		if err := mclient.Validate(mctx); err != nil {
+			log.Fatalf("Metron authentication failed: %v", err)
+			mclient = nil // Disable Metron integration if validation fails
+		}
+		log.Println("✓ Metron credentials validated successfully")
+	}
 
 	// 1. Initialize Browser Session
 	// headless = false so you can see the window
@@ -134,7 +155,37 @@ func main() {
 			},
 		})
 
-		// 5. Save the details to the database
+		// 4b. Fetch meta data from Metron API
+		if mclient != nil {
+			issue, err := mclient.FindIssueByUPC(mctx, details.UPC)
+			if err != nil {
+				log.Fatal(err)
+			} else {
+
+				fmt.Printf("Found: %s #%s\n", issue.Series.Name, issue.Number)
+				fmt.Printf("Store Date: %s\n", issue.StoreDate)
+				fmt.Printf("Page Count: %d\n", issue.PageCount)
+
+				fmt.Println("\nCredits:")
+				for _, credit := range issue.Credits {
+					roles := ""
+					for i, role := range credit.Role {
+						if i > 0 {
+							roles += ", "
+						}
+						roles += role.Name
+					}
+					fmt.Printf("  %s - %s\n", credit.Creator.Name, roles)
+				}
+
+				fmt.Println("\nCharacters:")
+				for _, char := range issue.Characters {
+					fmt.Printf("  - %s\n", char.Name)
+				}
+			}
+		}
+
+		// 4c. Save the details to the database
 		if err = database.SaveComic(details); err != nil {
 			log.Printf("-> ERROR saving to database: %v\n", err)
 			continue
