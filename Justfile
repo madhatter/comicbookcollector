@@ -28,60 +28,164 @@ deps:
     go mod tidy
 
 ## Metron API exploration commands
-
+metron_user := "madhatter"
+metron_pass := env_var('METRON_PASS')
 explore_dir := "docs/api-responses"
+rate_limit_file := env_var('HOME') + "/.metron-last-request"
+
+# Rate-limited GET request (body only)
+_metron-get endpoint:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    # Rate limiting: ensure 4s between requests
+    if [ -f "{{rate_limit_file}}" ]; then
+        ELAPSED=$(($(date +%s) - $(cat {{rate_limit_file}})))
+        if [ $ELAPSED -lt 4 ]; then
+            WAIT=$((4 - ELAPSED))
+            echo "⏱  Rate limiting: waiting ${WAIT}s..." >&2
+            sleep $WAIT
+        fi
+    fi
+    
+    # Make request
+    xh GET "https://metron.cloud/api{{endpoint}}" \
+        -a "{{metron_user}}:{{metron_pass}}"
+    
+    # Track request time
+    date +%s > "{{rate_limit_file}}"
+
+# Get headers only (for rate limit checking)
+_metron-headers endpoint:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    # Rate limiting
+    if [ -f "{{rate_limit_file}}" ]; then
+        ELAPSED=$(($(date +%s) - $(cat {{rate_limit_file}})))
+        if [ $ELAPSED -lt 4 ]; then
+            WAIT=$((4 - ELAPSED))
+            echo "⏱  Rate limiting: waiting ${WAIT}s..." >&2
+            sleep $WAIT
+        fi
+    fi
+    
+    # Get headers only
+    xh -h GET "https://metron.cloud/api{{endpoint}}" \
+        -a "{{metron_user}}:{{metron_pass}}"
+    
+    # Track request time
+    date +%s > "{{rate_limit_file}}"
 
 # Ensure output directory exists
 _setup:
     @mkdir -p {{explore_dir}}
 
-# 1. Validate credentials (1 request)
-@explore-validate: _setup
+# Validate credentials (1 request)
+metron-validate: _setup
+    #!/usr/bin/env bash
     echo "Validating credentials..."
-    http -a madhatter:$METRON_PASS \
-        https://metron.cloud/api/publisher/?page_size=1 \
-        > {{explore_dir}}/validate.json
-    echo "✅ Credentials valid"
+    RESPONSE=$(just _metron-get "/publisher/?page_size=1")
+    COUNT=$(echo "$RESPONSE" | jq -r '.count')
+    if [ "$COUNT" -gt 0 ]; then
+        echo "✅ Credentials valid ($COUNT publishers found)"
+    else
+        echo "❌ Unexpected response"
+        exit 1
+    fi
 
-# 2. Find issue by UPC
-@explore-upc UPC: _setup
+# Find issue by UPC
+metron-upc UPC: _setup
+    #!/usr/bin/env bash
     echo "Searching for UPC: {{UPC}}"
-    http -a madhatter:$METRON_PASS \
-        https://metron.cloud/api/issue/ \
-        upc=={{UPC}} \
-        > {{explore_dir}}/upc-{{UPC}}.json
-    jq -r '.results[] | "Found: \(.series.name) #\(.number) (ID: \(.id))"' \
-        {{explore_dir}}/upc-{{UPC}}.json
+    RESPONSE=$(just _metron-get "/issue/?upc={{UPC}}")
+    echo "$RESPONSE" > "{{explore_dir}}/upc-{{UPC}}.json"
+    echo "📄 Saved to {{explore_dir}}/upc-{{UPC}}.json"
+    
+    # Show results
+    echo "$RESPONSE" | jq -r '.results[] | "Found: \(.series.name) #\(.number) (ID: \(.id))"'
 
-# 3. Get full issue details
-@explore-issue ID: _setup
-    echo "Getting details for issue {{ID}}"
-    http -a madhatter:$METRON_PASS \
-        https://metron.cloud/api/issue/{{ID}}/ \
-        > {{explore_dir}}/issue-{{ID}}.json
-    echo "✅ Saved to {{explore_dir}}/issue-{{ID}}.json"
-    echo -e "\nCredits:"
-    jq -r '.credits[] | "  \(.creator.name): \(.role | map(.name) | join(", "))"' \
-        {{explore_dir}}/issue-{{ID}}.json
+# Get issue details
+metron-issue ID: _setup
+    #!/usr/bin/env bash
+    echo "Getting details for issue {{ID}}..."
+    RESPONSE=$(just _metron-get "/issue/{{ID}}/")
+    echo "$RESPONSE" > "{{explore_dir}}/issue-{{ID}}.json"
+    echo "📄 Saved to {{explore_dir}}/issue-{{ID}}.json"
+    
+    # Show credits
+    echo ""
+    echo "Credits:"
+    echo "$RESPONSE" | jq -r '.credits[] | " (\(.id)) \(.creator): \(.role | map(.name) | join(", "))"'
 
-# 4. Complete exploration workflow
-@explore-full UPC: _setup
+# Get creator details
+metron-creator ID: _setup
+    #!/usr/bin/env bash
+    echo "Getting creator {{ID}}..."
+    RESPONSE=$(just _metron-get "/creator/{{ID}}/")
+    echo "$RESPONSE" > "{{explore_dir}}/creator-{{ID}}.json"
+    echo "📄 Saved to {{explore_dir}}/creator-{{ID}}.json"
+    
+    # Show info
+    echo "$RESPONSE" | jq -r '"Name: \(.name)\nBirth: \(.birth // "unknown")\nDeath: \(.death // "alive")"'
+
+# Get series details
+metron-series ID: _setup
+    #!/usr/bin/env bash
+    echo "Getting series {{ID}}..."
+    RESPONSE=$(just _metron-get "/series/{{ID}}/")
+    echo "$RESPONSE" > "{{explore_dir}}/series-{{ID}}.json"
+    echo "📄 Saved to {{explore_dir}}/series-{{ID}}.json"
+    
+    # Show info
+    echo "$RESPONSE" | jq -r '"Series: \(.name) v\(.volume)\nYear: \(.year_began)-\(.year_end // "ongoing")\nIssues: \(.issue_count)"'
+
+# Show current rate limit status
+metron-status:
+    #!/usr/bin/env bash
+    echo "Checking rate limits..."
+    HEADERS=$(just _metron-headers "/publisher/?page_size=1")
+    
+    echo ""
+    echo "Rate Limits:"
+    echo "$HEADERS" | grep -i "x-ratelimit-burst" | sed 's/^/  /'
+    echo "$HEADERS" | grep -i "x-ratelimit-sustained" | sed 's/^/  /'
+
+# Complete exploration for a UPC
+metron-explore UPC: _setup
+    #!/usr/bin/env bash
     echo "=== Full exploration for UPC: {{UPC}} ==="
-    just explore-upc {{UPC}}
-    $(eval ISSUE_ID := $(shell jq -r '.results[0].id' {{explore_dir}}/upc-{{UPC}}.json))
-    just explore-issue $ISSUE_ID
+    echo ""
+    
+    # Step 1: Find issue
+    just metron-upc {{UPC}}
+    
+    # Step 2: Get issue ID
+    ISSUE_ID=$(jq -r '.results[0].id' "{{explore_dir}}/upc-{{UPC}}.json")
+    
+    if [ "$ISSUE_ID" = "null" ] || [ -z "$ISSUE_ID" ]; then
+        echo "❌ No issue found for UPC {{UPC}}"
+        exit 1
+    fi
+    
+    echo ""
+    
+    # Step 3: Get full issue details
+    just metron-issue $ISSUE_ID
+    
+    echo ""
+    echo "✅ Exploration complete"
 
-# 5. List all saved responses
-@explore-list:
+# List all saved responses
+metron-list:
     @echo "Saved API responses:"
-    @ls -lh {{explore_dir}}/*.json 2>/dev/null || echo "No responses yet"
+    @ls -lh {{explore_dir}}/*.json 2>/dev/null || echo "No responses saved yet"
 
-# 6. View a response with syntax highlighting
-@explore-view FILE:
+# View a saved response
+metron-view FILE:
     @jq '.' {{explore_dir}}/{{FILE}}
 
-# 7. Compare two responses
-@explore-diff FILE1 FILE2:
-    @diff -u \
-        <(jq -S '.' {{explore_dir}}/{{FILE1}}) \
-        <(jq -S '.' {{explore_dir}}/{{FILE2}})
+# Clean up saved responses
+metron-clean:
+    @rm -rf {{explore_dir}}/*.json
+    @echo "✅ Cleaned up {{explore_dir}}"

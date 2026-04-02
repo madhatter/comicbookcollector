@@ -45,7 +45,7 @@ func (c *Client) Validate(ctx context.Context) error {
 	}
 
 	req.SetBasicAuth(c.username, c.password)
-	req.Header.Set("User-Agent", "ComicScanner/1.0 (github.com/madhatter/comicscanner)")
+	req.Header.Set("User-Agent", "ComicBookCollector/1.0 (github.com/madhatter/comicbookcollector)")
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.httpClient.Do(req)
@@ -81,7 +81,7 @@ func (c *Client) get(ctx context.Context, endpoint string) (*http.Response, erro
 	}
 
 	req.SetBasicAuth(c.username, c.password)
-	req.Header.Set("User-Agent", "ComicScanner/1.0 (github.com/madhatter/comicscanner)")
+	req.Header.Set("User-Agent", "ComicBookCollector/1.0 (github.com/madhatter/comicbookcollector)")
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.httpClient.Do(req)
