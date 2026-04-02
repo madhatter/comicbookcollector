@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"math/rand"
 	"os"
 	"time"
 
@@ -92,34 +93,53 @@ func main() {
 
 	log.Printf("[Success] Found %d collection items.\n", len(items))
 
+	// Load already-scraped IDs to skip them
+	existingIDs, err := database.GetAllLoCGIDs()
+	if err != nil {
+		log.Fatalln("[FATAL] Failed to load existing IDs:", err)
+	}
+	existing := make(map[int]bool, len(existingIDs))
+	for _, id := range existingIDs {
+		existing[id] = true
+	}
+
+	var toScrape []locg.ComicItem
+	for _, item := range items {
+		if !existing[item.ID] {
+			toScrape = append(toScrape, item)
+		}
+	}
+
+	log.Printf("[Info] %d already in DB, %d to scrape.\n", len(existingIDs), len(toScrape))
+
 	p.Send(ui.ComicScrapeMessage{
-		Total:         len(items),
-		StatusMessage: "Done. ",
+		Total:         len(toScrape),
+		StatusMessage: "Starting scraper... ",
 	})
 
 	// 4. Scrape the details for each comic book in the collection
-	// For demonstration, we'll just scrape the first few items to avoid long runtimes during testing.
-	//limit := min(len(items), 300)
-
-	for i, item := range items {
-		log.Printf("[%d/%d] Scrape: %s\n", i+1, len(items), item.URL)
+	for i, item := range toScrape {
+		log.Printf("[%d/%d] Scrape: %s\n", i+1, len(toScrape), item.URL)
 
 		select {
 		case <-done:
 			log.Println("Progress UI has finished. Stopping scraping.")
 			return
 		default:
-			// Continue with scraping
 		}
 
 		details, err := locg.ScrapeComicBookDetails(sess.Context, item)
 		if err != nil {
 			log.Printf("-> ERROR: %v\n", err)
+			if sess.Context.Err() != nil {
+				log.Printf("[FATAL] Browser session lost: %v — stopping.\n", sess.Context.Err())
+				break
+			}
 			continue
 		}
 
 		p.Send(ui.ComicScrapeMessage{
-			Total:         len(items),
+			Total:         len(toScrape),
 			Current:       i + 1,
 			StatusMessage: "Scraping... ",
 			Detail: ui.ComicDetail{
@@ -141,6 +161,9 @@ func main() {
 		}
 
 		log.Printf("-> Successfully saved to database.\n")
+
+		// Random delay between 1-3 seconds to avoid bot detection
+		time.Sleep(time.Duration(1000+rand.Intn(2000)) * time.Millisecond)
 	}
 	p.Quit()
 	<-done // Wait for the progress UI to finish
