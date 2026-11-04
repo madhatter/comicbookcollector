@@ -10,13 +10,14 @@ import (
 
 // ScrollToBottom scrolls to the bottom of the page, waiting for new content to load
 // until it detects that no more content is being loaded (i.e., the scroll height stops increasing).
-func ScrollToBottom() chromedp.ActionFunc {
-	return chromedp.ActionFunc(func(ctx context.Context) error {
-		var oldHeight, newHeight int
+func ScrollToBottom() chromedp.Action[chromedp.Void] {
+	return chromedp.Func(func(ctx context.Context, t *chromedp.Target) error {
+		var oldHeight int
 
 		for {
 			// Get the current scroll height of the page
-			if err := chromedp.Evaluate(`document.body.scrollHeight`, &newHeight).Do(ctx); err != nil {
+			newHeight, err := chromedp.Evaluate[int](`document.body.scrollHeight`)(ctx, t)
+			if err != nil {
 				return err
 			}
 
@@ -28,15 +29,29 @@ func ScrollToBottom() chromedp.ActionFunc {
 			}
 
 			// Scroll to the bottom of the page
-			if err := chromedp.Evaluate(`window.scrollTo(0, document.body.scrollHeight)`, nil).Do(ctx); err != nil {
+			if _, err := chromedp.Evaluate[chromedp.Void](`window.scrollTo(0, document.body.scrollHeight)`)(ctx, t); err != nil {
 				return err
 			}
 
 			// Wait for new content to load
-			time.Sleep(2 * time.Second)
+			if _, err := chromedp.Sleep(2*time.Second)(ctx, t); err != nil {
+				return err
+			}
 
 			oldHeight = newHeight
 		}
+		return nil
+	})
+}
+
+// Into runs a and stores its result in dst, turning an Action[T] into an Action[Void].
+func Into[T any](dst *T, a chromedp.Action[T]) chromedp.Action[chromedp.Void] {
+	return chromedp.Func(func(ctx context.Context, t *chromedp.Target) error {
+		v, err := a(ctx, t)
+		if err != nil {
+			return err
+		}
+		*dst = v
 		return nil
 	})
 }

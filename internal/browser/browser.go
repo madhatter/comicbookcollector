@@ -55,7 +55,7 @@ func NewSession(headless bool) (*Session, error) {
 	ctx, cancel := chromedp.NewContext(allocCtx)
 
 	// Start the browser here to use the session immediately
-	if err := chromedp.Run(ctx); err != nil {
+	if err := chromedp.Do(ctx); err != nil {
 		log.Println("[Browser] Unable to start: ", err)
 		return &Session{Context: nil, Cancel: nil, allocCancel: nil}, err
 	}
@@ -86,13 +86,12 @@ func (s *Session) EnsureLoggedIn(username string, checkUrl string) error {
 	ctx, cancel := context.WithTimeout(s.Context, 30*time.Second)
 	defer cancel()
 
-	err := chromedp.Run(ctx,
+	err := chromedp.Do(ctx,
 		chromedp.Navigate(checkUrl),
 		// Give the page a moment to render the DOM
 		chromedp.Sleep(3*time.Second),
-		chromedp.Location(&currentURL),
+		Into(&currentURL, chromedp.Location()),
 	)
-
 	if err != nil {
 		return err
 	}
