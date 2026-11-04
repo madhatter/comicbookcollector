@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/chromedp"
 	"github.com/madhatter/comicbookcollector/internal/browser"
 )
@@ -32,7 +31,7 @@ func GetCollectionLinks(ctx context.Context, username string) ([]ComicItem, erro
 	// Hopefully.
 	linkSelector := `li.issue div.cover a`
 
-	err := chromedp.Run(ctx,
+	err := chromedp.Do(ctx,
 		chromedp.Navigate(collectionURL),
 		chromedp.Sleep(2*time.Second), // Wait for the page to load
 
@@ -40,10 +39,9 @@ func GetCollectionLinks(ctx context.Context, username string) ([]ComicItem, erro
 		browser.ScrollToBottom(),
 
 		// Extract the links to the comic book detail pages
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			var nodes []*cdp.Node
-
-			if err := chromedp.Nodes(linkSelector, &nodes, chromedp.ByQueryAll).Do(ctx); err != nil {
+		chromedp.Func(func(ctx context.Context, t *chromedp.Target) error {
+			nodes, err := chromedp.Nodes(chromedp.CSSAll(linkSelector))(ctx, t)
+			if err != nil {
 				return err
 			}
 

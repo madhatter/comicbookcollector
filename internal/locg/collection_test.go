@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/chromedp"
+	"github.com/madhatter/comicbookcollector/internal/browser"
 )
 
 func TestGetLinksSelector(t *testing.T) {
@@ -51,14 +51,14 @@ func TestGetLinksSelector(t *testing.T) {
 	ctx, cancelTimeout := context.WithTimeout(ctx, 120*time.Second)
 	defer cancelTimeout()
 
-	var nodes []*cdp.Node
+	var nodes []*chromedp.Node
 
 	// This is the selector we use in GetCollectionLinks to find the comic links
 	selector := `li.issue div.cover a`
 
-	err := chromedp.Run(ctx,
+	err := chromedp.Do(ctx,
 		chromedp.Navigate(ts.URL),
-		chromedp.Nodes(selector, &nodes, chromedp.ByQueryAll),
+		browser.Into(&nodes, chromedp.Nodes(chromedp.CSSAll(selector))),
 	)
 
 	if err != nil {

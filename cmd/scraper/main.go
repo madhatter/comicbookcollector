@@ -72,7 +72,7 @@ func main() {
 		log.Println("Waiting 60 seconds for manual login...")
 
 		// Wait on the main browser context
-		err = chromedp.Run(sess.Context, chromedp.Sleep(60*time.Second))
+		err = chromedp.Do(sess.Context, chromedp.Sleep(60*time.Second))
 
 		if err != nil {
 			log.Fatalln("[FATAL] Session died:", err)

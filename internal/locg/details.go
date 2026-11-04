@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/chromedp"
+	"github.com/madhatter/comicbookcollector/internal/browser"
 )
 
 type ComicBookDetails struct {
@@ -39,36 +39,35 @@ func ScrapeComicBookDetails(parentCtx context.Context, item ComicItem) (*ComicBo
 	ctx, cancel := context.WithTimeout(parentCtx, 15*time.Second)
 	defer cancel()
 
-	err := chromedp.Run(ctx,
+	err := chromedp.Do(ctx,
 		chromedp.Navigate(item.URL),
 
 		fetchBasicData(d),
 		fetchExtendedData(d),
 
 		// STORAGE BOX: Need to click to "My Details" tab first
-		chromedp.Click(`#nav-my-details-tab`, chromedp.ByQuery),
+		chromedp.Click(chromedp.CSS(`#nav-my-details-tab`)),
 
 		// Wait for content to load
 		chromedp.Sleep(1*time.Second),
 
 		// Then get the storage box info
-		chromedp.Value(`#storage_box`, &d.StorageBox, chromedp.ByQuery),
+		browser.Into(&d.StorageBox, chromedp.Value(chromedp.CSS(`#storage_box`))),
 
 		// MARKET VALUE: Extract the actual value of the comic book from the "Market" tab.
-		chromedp.Click(`#nav-market-tab`, chromedp.ByQuery),
+		chromedp.Click(chromedp.CSS(`#nav-market-tab`)),
 
 		// Wait for content to load
 		chromedp.Sleep(1*time.Second),
 
 		// The value of the comic book is found in the "Market" tab. We prioritize the "My Comic" value,
 		// as it is most relevant to the user's collection. If it's not available, we fall back to the "Raw" value.
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			var valueStr string
+		chromedp.Func(func(ctx context.Context, t *chromedp.Target) error {
 			myComicSelector := `//div[text()='My Comic' and contains(@class, 'copy-large')]/parent::div/following-sibling::div/div[contains(@class, 'copy-large')]`
 			rawSelector := `//div[text()='Raw' and contains(@class, 'copy-large')]/parent::div/following-sibling::div/div[contains(@class, 'copy-large')]`
 
 			// First, try to get the "My Comic" value.
-			err := chromedp.Text(myComicSelector, &valueStr, chromedp.BySearch).Do(ctx)
+			valueStr, err := chromedp.Text(chromedp.Search(myComicSelector))(ctx, t)
 
 			// If "My Comic" value is not found, is empty, or is just a placeholder, try the "Raw" value.
 			if err != nil || strings.TrimSpace(valueStr) == "" || strings.TrimSpace(valueStr) == "-" {
@@ -78,10 +77,12 @@ func ScrapeComicBookDetails(parentCtx context.Context, item ComicItem) (*ComicBo
 					log.Printf("[Info] 'My Comic' value is empty or a placeholder ('%s'). Falling back to 'Raw'.", valueStr)
 				}
 
-				if err2 := chromedp.Text(rawSelector, &valueStr, chromedp.BySearch).Do(ctx); err2 != nil {
+				raw, err2 := chromedp.Text(chromedp.Search(rawSelector))(ctx, t)
+				if err2 != nil {
 					log.Printf("[Info] Could not find 'Raw' value either: %v", err2)
 					return nil // Don't block, just log it.
 				}
+				valueStr = raw
 			}
 
 			if priceCents, ok := parsePrice(valueStr); ok {
@@ -112,11 +113,11 @@ func ScrapeComicBookDetails(parentCtx context.Context, item ComicItem) (*ComicBo
 }
 
 // fetchBasicData extracts the title, publisher, and UPC from the comic book details page
-func fetchBasicData(d *ComicBookDetails) chromedp.Action {
-	return chromedp.ActionFunc(func(ctx context.Context) error {
+func fetchBasicData(d *ComicBookDetails) chromedp.Action[chromedp.Void] {
+	return chromedp.Func(func(ctx context.Context, t *chromedp.Target) error {
 		// TITLE: h1 inside of div.page-details
-		var title string
-		if err := chromedp.Text(`div.page-details h1`, &title, chromedp.ByQuery).Do(ctx); err != nil {
+		title, err := chromedp.Text(chromedp.CSS(`div.page-details h1`))(ctx, t)
+		if err != nil {
 			log.Printf("[Error] Failed to extract title: %v", err)
 			return err
 		}
@@ -135,7 +136,8 @@ func fetchBasicData(d *ComicBookDetails) chromedp.Action {
 		}
 
 		// PUBLISHER: Link inside of div.header-intro
-		if err := chromedp.Text(`div.header-intro a`, &d.Publisher, chromedp.ByQuery).Do(ctx); err != nil {
+		d.Publisher, err = chromedp.Text(chromedp.CSS(`div.header-intro a`))(ctx, t)
+		if err != nil {
 			log.Printf("[Error] Failed to extract publisher: %v", err)
 			return err
 		}
@@ -143,15 +145,16 @@ func fetchBasicData(d *ComicBookDetails) chromedp.Action {
 		// UPC: XPath to find the UPC value
 		// Search for div with class 'name' containing text 'UPC' and get the following sibling div with class 'value'
 		// First check if the element exists to avoid errors when trying to extract text
-		var nodes []*cdp.Node
-		if err := chromedp.Nodes(`//div[contains(@class, 'name') and contains(text(), 'UPC')]/following-sibling::div[contains(@class, 'value')]`, &nodes, chromedp.AtLeast(0)).Do(ctx); err != nil {
-			log.Printf("[Error] Failed to check for UPC element: %v)", err)
+		nodes, err := chromedp.Nodes(chromedp.Search(`//div[contains(@class, 'name') and contains(text(), 'UPC')]/following-sibling::div[contains(@class, 'value')]`), chromedp.AtLeast(0))(ctx, t)
+		if err != nil {
+			log.Printf("[Error] Failed to check for UPC element: %v", err)
 			return err
 		}
 
 		if len(nodes) > 0 {
 			// Element exists, extract the text
-			if err := chromedp.Text(`//div[contains(@class, 'name') and contains(text(), 'UPC')]/following-sibling::div[contains(@class, 'value')]`, &d.UPC, chromedp.BySearch).Do(ctx); err != nil {
+			d.UPC, err = chromedp.Text(chromedp.Search(`//div[contains(@class, 'name') and contains(text(), 'UPC')]/following-sibling::div[contains(@class, 'value')]`))(ctx, t)
+			if err != nil {
 				log.Printf("[Error] Failed to extract UPC: %v", err)
 				return err
 			}
@@ -161,15 +164,13 @@ func fetchBasicData(d *ComicBookDetails) chromedp.Action {
 }
 
 // fetchExtendedData extracts the release date from the comic book details page
-func fetchExtendedData(d *ComicBookDetails) chromedp.Action {
-	return chromedp.ActionFunc(func(ctx context.Context) error {
-		var dateStr string
+func fetchExtendedData(d *ComicBookDetails) chromedp.Action[chromedp.Void] {
+	return chromedp.Func(func(ctx context.Context, t *chromedp.Target) error {
 		dateSelector := `//div[contains(@class, 'header-intro')]//a[contains(@href, '/new-comics/')]`
 
 		// RELEASE DATE: XPath to find the release date link inside the header intro
-		var dateNodes []*cdp.Node
-		if err := chromedp.Nodes(dateSelector, &dateNodes, chromedp.BySearch).Do(ctx); err == nil && len(dateNodes) > 0 {
-			if err := chromedp.Text(dateSelector, &dateStr, chromedp.BySearch).Do(ctx); err == nil {
+		if dateNodes, err := chromedp.Nodes(chromedp.Search(dateSelector))(ctx, t); err == nil && len(dateNodes) > 0 {
+			if dateStr, err := chromedp.Text(chromedp.Search(dateSelector))(ctx, t); err == nil {
 				d.ReleaseDate, err = ParseLoCGDate(dateStr)
 				if err != nil {
 					log.Printf("[Error] Failed to parse release date: %v\n", err)
@@ -186,10 +187,9 @@ func fetchExtendedData(d *ComicBookDetails) chromedp.Action {
 		priceSelector := `div.row.mt-1.mb-4 div.col.copy-small.font-italic`
 		var rawPriceText string
 
-		var priceNodes []*cdp.Node
-		if err := chromedp.Nodes(priceSelector, &priceNodes, chromedp.ByQuery).Do(ctx); err == nil && len(priceNodes) > 0 {
+		if priceNodes, err := chromedp.Nodes(chromedp.CSS(priceSelector))(ctx, t); err == nil && len(priceNodes) > 0 {
 			// This is something like "Comic · 32 pages · $3.99"
-			chromedp.Text(priceSelector, &rawPriceText, chromedp.ByQuery).Do(ctx)
+			rawPriceText, _ = chromedp.Text(chromedp.CSS(priceSelector))(ctx, t)
 			log.Printf("[Info] Raw price text: %s\n", rawPriceText)
 		} else {
 			log.Printf("[Info] No price element found with selector: %s\n", priceSelector)
@@ -202,18 +202,17 @@ func fetchExtendedData(d *ComicBookDetails) chromedp.Action {
 		// DESCRIPTION: div with class 'listing-description' inside of div.col12
 		descriptionSelector := `div.col-12.listing-description`
 
-		var descNodes []*cdp.Node
-		if err := chromedp.Nodes(descriptionSelector, &descNodes, chromedp.ByQuery).Do(ctx); err == nil && len(descNodes) > 0 {
-			chromedp.Text(descriptionSelector, &d.Description, chromedp.ByQuery).Do(ctx)
+		if descNodes, err := chromedp.Nodes(chromedp.CSS(descriptionSelector))(ctx, t); err == nil && len(descNodes) > 0 {
+			d.Description, _ = chromedp.Text(chromedp.CSS(descriptionSelector))(ctx, t)
 		}
 
 		// IMAGE LINK: div with class 'cover-art' and then a link with class 'cover-gallery'
 		imgSelector := `//div[contains(@class, 'cover-art')]/a[contains(@class, 'cover-gallery')]`
 
-		var imgNodes []*cdp.Node
-		if err := chromedp.Nodes(imgSelector, &imgNodes, chromedp.BySearch).Do(ctx); err == nil && len(imgNodes) > 0 {
-			var exists bool
-			if err := chromedp.AttributeValue(imgSelector, "href", &d.ImageLink, &exists, chromedp.BySearch).Do(ctx); err == nil && exists {
+		if imgNodes, err := chromedp.Nodes(chromedp.Search(imgSelector))(ctx, t); err == nil && len(imgNodes) > 0 {
+			res, err := chromedp.AttributeValue(chromedp.Search(imgSelector), "href")(ctx, t)
+			if err == nil && res.Exists {
+				d.ImageLink = res.Value
 				log.Printf("[Info] Image link: %s\n", d.ImageLink)
 			} else {
 				log.Printf("[Error] Failed to extract image link: %v\n", err)
