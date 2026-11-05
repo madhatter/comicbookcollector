@@ -6,8 +6,7 @@ require (
 	charm.land/bubbles/v2 v2.2.1
 	charm.land/bubbletea/v2 v2.1.1
 	charm.land/lipgloss/v2 v2.0.6
-	github.com/chromedp/cdproto v0.159.0
-	github.com/chromedp/chromedp v0.21.0
+	github.com/chromedp/chromedp v0.21.1
 	modernc.org/sqlite v1.61.1
 )
 
@@ -19,6 +18,7 @@ require (
 	github.com/charmbracelet/x/term v0.2.2 // indirect
 	github.com/charmbracelet/x/termios v0.1.1 // indirect
 	github.com/charmbracelet/x/windows v0.2.2 // indirect
+	github.com/chromedp/cdproto v0.159.0 // indirect
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
