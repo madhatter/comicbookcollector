@@ -6,7 +6,7 @@ require (
 	charm.land/bubbles/v2 v2.2.1
 	charm.land/bubbletea/v2 v2.1.1
 	charm.land/lipgloss/v2 v2.0.6
-	github.com/chromedp/chromedp v0.21.1
+	github.com/chromedp/chromedp v0.23.0
 	modernc.org/sqlite v1.61.1
 )
 
